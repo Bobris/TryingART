@@ -15,7 +15,15 @@ namespace ARTLib
         internal int _referenceCount;
         [FieldOffset(8)]
         internal ulong _recursiveChildCount;
-        [FieldOffset(8)]
-        internal int _valueLength;
+
+        internal void Reference()
+        {
+            _referenceCount++;
+        }
+
+        internal bool Dereference()
+        {
+            return --_referenceCount == 0;
+        }
     }
 }
