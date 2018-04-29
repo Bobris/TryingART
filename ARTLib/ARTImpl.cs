@@ -7,13 +7,20 @@ namespace ARTLib
     public class ARTImpl
     {
         readonly IOffHeapAllocator _allocator;
+        readonly bool _max12ByteValues;
 
-        ARTImpl(IOffHeapAllocator allocator)
+        internal ARTImpl(IOffHeapAllocator allocator, bool max12ByteValues)
         {
             _allocator = allocator;
+            _max12ByteValues = max12ByteValues;
         }
 
-        IntPtr AllocateNode(NodeType nodeType, ushort keyPrefixLength, uint valueLength)
+        public static IRootNode CreateEmptyRoot(IOffHeapAllocator allocator, bool max12ByteValues)
+        {
+            return new RootNode(new ARTImpl(allocator, max12ByteValues));
+        }
+
+        internal IntPtr AllocateNode(NodeType nodeType, ushort keyPrefixLength, uint valueLength)
         {
             var node = _allocator.Allocate((IntPtr)(NodeUtils.BaseSize(nodeType) + keyPrefixLength + valueLength));
             var nodeHeader = NodeUtils.Ptr2NodeHeader(node);
@@ -23,9 +30,9 @@ namespace ARTLib
             return node;
         }
 
-        void Dereference(IntPtr node)
+        internal void Dereference(IntPtr node)
         {
-            if (node.ToInt64() == 0)
+            if (node == IntPtr.Zero)
                 return;
             var nodeHeader = NodeUtils.Ptr2NodeHeader(node);
             if (!nodeHeader.Dereference()) return;

@@ -67,5 +67,13 @@ namespace ARTLib
                 return ref *(NodeHeader*)pointerInt;
             };
         }
+
+        internal static void Reference(IntPtr node)
+        {
+            if (node == IntPtr.Zero)
+                return;
+            var nodeHeader = Ptr2NodeHeader(node);
+            nodeHeader.Reference();
+        }
     }
 }

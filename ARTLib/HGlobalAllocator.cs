@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace ARTLib
 {
-    class HGlobalAllocator : IOffHeapAllocator
+    public class HGlobalAllocator : IOffHeapAllocator
     {
         public IntPtr Allocate(IntPtr size)
         {

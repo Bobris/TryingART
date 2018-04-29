@@ -2,7 +2,7 @@
 
 namespace ARTLib
 {
-    interface IOffHeapAllocator
+    public interface IOffHeapAllocator
     {
         IntPtr Allocate(IntPtr size);
         void Deallocate(IntPtr ptr);
