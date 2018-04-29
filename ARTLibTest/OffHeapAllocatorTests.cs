@@ -7,7 +7,7 @@ namespace ARTLibTest
     public class OffHeapAllocatorTests
     {
         [Fact]
-        public void AllocateReturnsPointerCanWriteInto()
+        public void HGlobalAllocatorReturnsPointerCanWriteInto()
         {
             var allocator = new HGlobalAllocator();
             var ptr = allocator.Allocate((IntPtr)4);
@@ -33,6 +33,16 @@ namespace ARTLibTest
             allocator.Deallocate(ptr1);
             allocator.Deallocate(ptr3);
             Assert.Throws<InvalidOperationException>(() => allocator.Deallocate(ptr1));
+        }
+
+        [Fact]
+        public void LeakDetectorDisposesLeaks()
+        {
+            var mainAllocator = new LeakDetectorWrapperAllocator(new HGlobalAllocator());
+            var allocator = new LeakDetectorWrapperAllocator(mainAllocator);
+            allocator.Allocate((IntPtr)4);
+            allocator.Dispose();
+            Assert.Equal(0u, mainAllocator.QueryAllocations().Count);
         }
     }
 }

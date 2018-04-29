@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 
 namespace ARTLib
 {
-    class LeakDetectorWrapperAllocator : IOffHeapAllocator
+    class LeakDetectorWrapperAllocator : IOffHeapAllocator, IDisposable
     {
         IOffHeapAllocator _wrapped;
         ConcurrentDictionary<IntPtr, IntPtr> _ptr2SizeMap = new ConcurrentDictionary<IntPtr, IntPtr>();
@@ -35,6 +35,14 @@ namespace ARTLib
             if (!_ptr2SizeMap.TryRemove(ptr, out var size))
                 throw new InvalidOperationException("Trying to free memory which is not allocated " + ptr.ToInt64());
             _wrapped.Deallocate(ptr);
+        }
+
+        public void Dispose()
+        {
+            foreach (var i in _ptr2SizeMap)
+            {
+                _wrapped.Deallocate(i.Key);
+            }
         }
     }
 }
