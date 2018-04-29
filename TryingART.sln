@@ -5,6 +5,8 @@ VisualStudioVersion = 15.0.27428.2037
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ARTLib", "ARTLib\ARTLib.csproj", "{6F5A8C0A-E18B-4952-A5A8-94130A0E5DDD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ARTLibTest", "ARTLibTest\ARTLibTest.csproj", "{22B42469-BC6E-4833-B51E-B3B5BB3834D6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{6F5A8C0A-E18B-4952-A5A8-94130A0E5DDD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6F5A8C0A-E18B-4952-A5A8-94130A0E5DDD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6F5A8C0A-E18B-4952-A5A8-94130A0E5DDD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{22B42469-BC6E-4833-B51E-B3B5BB3834D6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{22B42469-BC6E-4833-B51E-B3B5BB3834D6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{22B42469-BC6E-4833-B51E-B3B5BB3834D6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{22B42469-BC6E-4833-B51E-B3B5BB3834D6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

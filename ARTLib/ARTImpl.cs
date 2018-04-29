@@ -1,5 +1,7 @@
 ﻿using System;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("ARTLibTest")]
+
 namespace ARTLib
 {
     public class ARTImpl
@@ -9,6 +11,16 @@ namespace ARTLib
         ARTImpl(IOffHeapAllocator allocator)
         {
             _allocator = allocator;
+        }
+
+        IntPtr AllocateNode(NodeType nodeType, ushort keyPrefixLength, uint valueLength)
+        {
+            var node = _allocator.Allocate((IntPtr)(NodeUtils.BaseSize(nodeType) + keyPrefixLength + valueLength));
+            var nodeHeader = NodeUtils.Ptr2NodeHeader(node);
+            nodeHeader._nodeType = nodeType;
+            nodeHeader._keyPrefixLength = keyPrefixLength;
+            nodeHeader._referenceCount = 1;
+            return node;
         }
 
         void Dereference(IntPtr node)
@@ -142,6 +154,7 @@ namespace ARTLib
                     break;
                 default: throw new InvalidOperationException();
             }
+            _allocator.Deallocate(node);
         }
     }
 }
