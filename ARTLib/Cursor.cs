@@ -11,7 +11,7 @@ namespace ARTLib
 
         public Cursor(RootNode rootNode)
         {
-            this._rootNode = rootNode;
+            _rootNode = rootNode;
         }
 
         public long CalcDistance(ICursor to)

@@ -2,7 +2,7 @@
 
 namespace ARTLib
 {
-    internal class RootNode: IRootNode
+    internal class RootNode : IRootNode
     {
         internal RootNode(ARTImpl impl)
         {
@@ -39,6 +39,20 @@ namespace ARTLib
         public long GetCount()
         {
             return _pairs;
+        }
+
+        public void RevertTo(IRootNode snapshot)
+        {
+            if (!_writtable)
+                throw new InvalidOperationException("Only writtable root node could be reverted");
+            var oldRoot = _root;
+            _root = ((RootNode)snapshot)._root;
+            if (oldRoot != _root)
+            {
+                NodeUtils.Reference(_root);
+                _impl.Dereference(oldRoot);
+            }
+            _pairs = ((RootNode)snapshot)._pairs;
         }
     }
 }
