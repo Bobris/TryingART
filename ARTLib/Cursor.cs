@@ -7,11 +7,18 @@ namespace ARTLib
     internal class Cursor : ICursor
     {
         RootNode _rootNode;
-        List<CursorItem> _stack;
+        readonly List<CursorItem> _stack;
 
         public Cursor(RootNode rootNode)
         {
             _rootNode = rootNode;
+            _stack = new List<CursorItem>();
+        }
+
+        Cursor(Cursor from)
+        {
+            _rootNode = from._rootNode;
+            _stack = new List<CursorItem>(from._stack);
         }
 
         public long CalcDistance(ICursor to)
@@ -27,7 +34,7 @@ namespace ARTLib
 
         public ICursor Clone()
         {
-            throw new NotImplementedException();
+            return new Cursor(this);
         }
 
         public void Erase()
@@ -104,7 +111,8 @@ namespace ARTLib
 
         public bool Upsert(Span<byte> key, Span<byte> content)
         {
-            throw new NotImplementedException();
+            _stack.Clear();
+            return _rootNode._impl.Upsert(_rootNode, _stack, key, content);
         }
 
         public void WriteValue(Span<byte> content)

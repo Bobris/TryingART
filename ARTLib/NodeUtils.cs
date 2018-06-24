@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace ARTLib
 {
@@ -10,8 +11,6 @@ namespace ARTLib
             switch (nodeType & NodeType.NodeSizePtrMask)
             {
                 case NodeType.NodeLeaf: return 16;
-                case NodeType.Node1: return 16 + 8;
-                case NodeType.Node1 | NodeType.Has12BPtrs: return 16 + 12;
                 case NodeType.Node4: return 16 + 4 + 4 * 8;
                 case NodeType.Node4 | NodeType.Has12BPtrs: return 16 + 4 + 4 * 12;
                 case NodeType.Node16: return 16 + 16 + 16 * 8;
@@ -27,10 +26,7 @@ namespace ARTLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static IntPtr Read12Ptr(IntPtr childPtr)
         {
-            unsafe
-            {
-                return *(IntPtr*)(childPtr + 4);
-            }
+            return Marshal.ReadIntPtr(childPtr + sizeof(uint));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -49,14 +45,10 @@ namespace ARTLib
         }
 
 
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static IntPtr ReadPtr(IntPtr ptr)
         {
-            unsafe
-            {
-                return *(IntPtr*)ptr;
-            }
+            return Marshal.ReadIntPtr(ptr);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -68,12 +60,68 @@ namespace ARTLib
             };
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static IntPtr AlignPtrUpInt32(IntPtr ptr)
+        {
+            return ptr + (((~ptr.ToInt32()) + 1) & 3);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static uint AlignUIntUpInt32(uint ptr)
+        {
+            return ptr + (((~ptr) + 1) & 3);
+        }
+
         internal static void Reference(IntPtr node)
         {
             if (node == IntPtr.Zero)
                 return;
             var nodeHeader = Ptr2NodeHeader(node);
             nodeHeader.Reference();
+        }
+
+        internal static (uint Size, IntPtr Ptr) GetPrefixSizeAndPtr(IntPtr nodePtr)
+        {
+            ref NodeHeader header = ref Ptr2NodeHeader(nodePtr);
+            var baseSize = BaseSize(header._nodeType);
+            var size = (uint)header._keyPrefixLength;
+            var ptr = nodePtr + baseSize;
+            if (size == 0xffff)
+            {
+                size = (uint)Marshal.ReadInt32(ptr);
+                ptr += sizeof(uint);
+            }
+            if ((header._nodeType & (NodeType.IsLeaf | NodeType.Has12BPtrs)) == NodeType.IsLeaf)
+            {
+                ptr += sizeof(uint);
+            }
+            return (size, ptr);
+        }
+
+        internal static (uint Size, IntPtr Ptr) GetValueSizeAndPtr(IntPtr nodePtr)
+        {
+            ref NodeHeader header = ref Ptr2NodeHeader(nodePtr);
+            var baseSize = BaseSize(header._nodeType);
+            var prefixSize = (uint)header._keyPrefixLength;
+            var ptr = nodePtr + baseSize;
+            if (prefixSize == 0xffff)
+            {
+                unsafe { prefixSize = *(uint*)ptr; };
+                ptr += sizeof(uint);
+            }
+            uint size;
+            if ((header._nodeType & (NodeType.IsLeaf | NodeType.Has12BPtrs)) == NodeType.IsLeaf)
+            {
+                unsafe { size = *(uint*)ptr; };
+                ptr += sizeof(uint);
+                ptr += (int)prefixSize;
+            }
+            else
+            {
+                size = 12;
+                ptr = AlignPtrUpInt32(ptr);
+            }
+            return (size, ptr);
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace ARTLib
 {
@@ -8,7 +9,7 @@ namespace ARTLib
         [FieldOffset(0)]
         internal NodeType _nodeType;
         [FieldOffset(1)]
-        internal byte _childCountM1;
+        internal byte _childCount;
         [FieldOffset(2)]
         internal ushort _keyPrefixLength;
         [FieldOffset(4)]
@@ -24,6 +25,14 @@ namespace ARTLib
         internal bool Dereference()
         {
             return --_referenceCount == 0;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal bool IsNode256() => (_nodeType & NodeType.NodeSizeMask) == NodeType.Node256;
+
+        internal int ChildCount {
+            get => (_childCount == 0 && IsNode256()) ? 256 : _childCount;
+            set => _childCount = (byte)value;
         }
     }
 }
