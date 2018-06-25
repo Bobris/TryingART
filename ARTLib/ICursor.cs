@@ -15,10 +15,11 @@ namespace ARTLib
         bool MovePrevious();
         long CalcIndex();
         long CalcDistance(ICursor to);
+        bool IsValid();
         int GetKeyLength();
-        byte[] GetKey();
-        bool HasValue();
-        Span<byte> GetValue();
+        Span<byte> FillByKey(Span<byte> buffer);
+        int GetValueLength();
+        Span<byte> FillByValue(Span<byte> buffer);
 
         void WriteValue(Span<byte> content);
         bool Upsert(Span<byte> key, Span<byte> content);

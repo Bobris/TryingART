@@ -7,24 +7,24 @@ namespace ARTLib
 {
     public class ARTImpl
     {
+        internal readonly bool IsValue12;
         readonly IOffHeapAllocator _allocator;
-        readonly bool _max12ByteValues;
 
-        internal ARTImpl(IOffHeapAllocator allocator, bool max12ByteValues)
+        internal ARTImpl(IOffHeapAllocator allocator, bool isValue12)
         {
             _allocator = allocator;
-            _max12ByteValues = max12ByteValues;
+            IsValue12 = isValue12;
         }
 
-        public static IRootNode CreateEmptyRoot(IOffHeapAllocator allocator, bool max12ByteValues)
+        public static IRootNode CreateEmptyRoot(IOffHeapAllocator allocator, bool isValue12)
         {
-            return new RootNode(new ARTImpl(allocator, max12ByteValues));
+            return new RootNode(new ARTImpl(allocator, isValue12));
         }
 
         internal IntPtr AllocateNode(NodeType nodeType, uint keyPrefixLength, uint valueLength)
         {
             IntPtr node;
-            if (_max12ByteValues)
+            if (IsValue12)
             {
                 nodeType = nodeType | NodeType.Has12BPtrs;
                 var size = NodeUtils.BaseSize(nodeType) + NodeUtils.AlignUIntUpInt32(keyPrefixLength) + 12;
@@ -168,7 +168,7 @@ namespace ARTLib
         {
             if (rootNode._root == IntPtr.Zero)
             {
-                var cursorItem = new CursorItem(AllocateNode(NodeType.NodeLeaf, (uint)key.Length, (uint)content.Length), (uint)key.Length);
+                var cursorItem = new CursorItem(AllocateNode(NodeType.NodeLeaf, (uint)key.Length, (uint)content.Length), (uint)key.Length, -1, 0);
                 stack.Add(cursorItem);
                 rootNode._root = cursorItem._node;
                 var (size, ptr) = NodeUtils.GetPrefixSizeAndPtr(cursorItem._node);

@@ -123,5 +123,28 @@ namespace ARTLib
             }
             return (size, ptr);
         }
+
+        internal static int ReadLenFromPtr(IntPtr ptr)
+        {
+            unsafe { return *(byte*)ptr.ToPointer() >> 1; }
+        }
+
+        internal static IntPtr PtrInNode(IntPtr node, int posInNode)
+        {
+            var nodeType = Ptr2NodeHeader(node)._nodeType;
+            switch (nodeType & NodeType.NodeSizePtrMask)
+            {
+                case NodeType.NodeLeaf: return node + 16;
+                case NodeType.Node4: return node + 16 + 4 + posInNode * 8;
+                case NodeType.Node4 | NodeType.Has12BPtrs: return node + 16 + 4 + posInNode * 12;
+                case NodeType.Node16: return node + 16 + 16 + posInNode * 8;
+                case NodeType.Node16 | NodeType.Has12BPtrs: return node + 16 + 16 + posInNode * 12;
+                case NodeType.Node48: return node + 16 + 256 + posInNode * 8;
+                case NodeType.Node48 | NodeType.Has12BPtrs: return node + 16 + 256 + posInNode * 12;
+                case NodeType.Node256: return node + 16 + posInNode * 8;
+                case NodeType.Node256 | NodeType.Has12BPtrs: return node + 16 + posInNode * 12;
+                default: throw new InvalidOperationException();
+            }
+        }
     }
 }
