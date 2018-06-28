@@ -33,13 +33,12 @@ namespace ARTLib
             }
             else
             {
-                nodeType = nodeType | NodeType.Has12BPtrs;
                 var size = NodeUtils.BaseSize(nodeType) + keyPrefixLength + valueLength;
                 if (keyPrefixLength >= 0xffff) size += 4;
                 if ((nodeType & NodeType.IsLeaf) != 0) size += 4;
                 node = _allocator.Allocate((IntPtr)size);
             }
-            var nodeHeader = NodeUtils.Ptr2NodeHeader(node);
+            ref var nodeHeader = ref NodeUtils.Ptr2NodeHeader(node);
             nodeHeader._nodeType = nodeType;
             nodeHeader._childCount = 0;
             nodeHeader._keyPrefixLength = (ushort)(keyPrefixLength >= 0xffffu ? 0xffffu : keyPrefixLength);
@@ -168,7 +167,7 @@ namespace ARTLib
         {
             if (rootNode._root == IntPtr.Zero)
             {
-                var cursorItem = new CursorItem(AllocateNode(NodeType.NodeLeaf, (uint)key.Length, (uint)content.Length), (uint)key.Length, -1, 0);
+                var cursorItem = new CursorItem(AllocateNode(NodeType.NodeLeaf | NodeType.IsLeaf, (uint)key.Length, (uint)content.Length), (uint)key.Length, -1, 0);
                 stack.Add(cursorItem);
                 rootNode._root = cursorItem._node;
                 var (size, ptr) = NodeUtils.GetPrefixSizeAndPtr(cursorItem._node);

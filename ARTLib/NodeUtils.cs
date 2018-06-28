@@ -63,7 +63,7 @@ namespace ARTLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static IntPtr AlignPtrUpInt32(IntPtr ptr)
         {
-            return ptr + (((~ptr.ToInt32()) + 1) & 3);
+            return ptr + (((~(int)ptr.ToInt64()) + 1) & 3);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
