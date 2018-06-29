@@ -21,8 +21,8 @@ namespace ARTLib
         int GetValueLength();
         Span<byte> FillByValue(Span<byte> buffer);
 
-        void WriteValue(Span<byte> content);
-        bool Upsert(Span<byte> key, Span<byte> content);
+        void WriteValue(ReadOnlySpan<byte> content);
+        bool Upsert(ReadOnlySpan<byte> key, ReadOnlySpan<byte> content);
         void Erase();
         long EraseTo(ICursor to);
         long EraseAllWithKeyPrefixLength(int len);

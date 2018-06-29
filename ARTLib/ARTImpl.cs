@@ -24,16 +24,19 @@ namespace ARTLib
         internal IntPtr AllocateNode(NodeType nodeType, uint keyPrefixLength, uint valueLength)
         {
             IntPtr node;
+            int baseSize;
             if (IsValue12)
             {
                 nodeType = nodeType | NodeType.Has12BPtrs;
-                var size = NodeUtils.BaseSize(nodeType) + NodeUtils.AlignUIntUpInt32(keyPrefixLength) + 12;
+                baseSize = NodeUtils.BaseSize(nodeType);
+                var size = baseSize + NodeUtils.AlignUIntUpInt32(keyPrefixLength) + 12;
                 if (keyPrefixLength >= 0xffff) size += 4;
                 node = _allocator.Allocate((IntPtr)size);
             }
             else
             {
-                var size = NodeUtils.BaseSize(nodeType) + keyPrefixLength + valueLength;
+                baseSize = NodeUtils.BaseSize(nodeType);
+                var size = baseSize + keyPrefixLength + valueLength;
                 if (keyPrefixLength >= 0xffff) size += 4;
                 if ((nodeType & NodeType.IsLeaf) != 0) size += 4;
                 node = _allocator.Allocate((IntPtr)size);
@@ -44,6 +47,15 @@ namespace ARTLib
             nodeHeader._keyPrefixLength = (ushort)(keyPrefixLength >= 0xffffu ? 0xffffu : keyPrefixLength);
             nodeHeader._referenceCount = 1;
             nodeHeader._recursiveChildCount = 1;
+            if (keyPrefixLength>=0xffffu)
+            {
+                unsafe { *(uint*)(node + baseSize).ToPointer() = keyPrefixLength; }
+                baseSize += 4;
+            }
+            if (!IsValue12 && ((nodeType & NodeType.IsLeaf) != 0))
+            {
+                unsafe { *(uint*)(node + baseSize).ToPointer() = valueLength; }
+            }
             return node;
         }
 
@@ -56,6 +68,7 @@ namespace ARTLib
             switch (nodeHeader._nodeType & NodeType.NodeSizePtrMask)
             {
                 case NodeType.NodeLeaf:
+                case NodeType.NodeLeaf | NodeType.Has12BPtrs:
                     // does not contain any pointers
                     break;
                 case NodeType.Node4:
@@ -163,7 +176,7 @@ namespace ARTLib
             _allocator.Deallocate(node);
         }
 
-        internal bool Upsert(RootNode rootNode, List<CursorItem> stack, Span<byte> key, Span<byte> content)
+        internal bool Upsert(RootNode rootNode, List<CursorItem> stack, ReadOnlySpan<byte> key, ReadOnlySpan<byte> content)
         {
             if (rootNode._root == IntPtr.Zero)
             {

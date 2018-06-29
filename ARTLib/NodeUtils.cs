@@ -10,7 +10,9 @@ namespace ARTLib
         {
             switch (nodeType & NodeType.NodeSizePtrMask)
             {
-                case NodeType.NodeLeaf: return 16;
+                case NodeType.NodeLeaf:
+                case NodeType.NodeLeaf | NodeType.Has12BPtrs:
+                    return 16;
                 case NodeType.Node4: return 16 + 4 + 4 * 8;
                 case NodeType.Node4 | NodeType.Has12BPtrs: return 16 + 4 + 4 * 12;
                 case NodeType.Node16: return 16 + 16 + 16 * 8;
@@ -119,6 +121,7 @@ namespace ARTLib
             else
             {
                 size = 12;
+                ptr += (int)prefixSize;
                 ptr = AlignPtrUpInt32(ptr);
             }
             return (size, ptr);
@@ -126,7 +129,14 @@ namespace ARTLib
 
         internal static int ReadLenFromPtr(IntPtr ptr)
         {
+            // Assumes Little Endian
             unsafe { return *(byte*)ptr.ToPointer() >> 1; }
+        }
+
+        internal static IntPtr SkipLenFromPtr(IntPtr ptr)
+        {
+            // Assumes Little Endian
+            return ptr + 1;
         }
 
         internal static IntPtr PtrInNode(IntPtr node, int posInNode)
@@ -134,7 +144,9 @@ namespace ARTLib
             var nodeType = Ptr2NodeHeader(node)._nodeType;
             switch (nodeType & NodeType.NodeSizePtrMask)
             {
-                case NodeType.NodeLeaf: return node + 16;
+                case NodeType.NodeLeaf: 
+                case NodeType.NodeLeaf | NodeType.Has12BPtrs:
+                    return node + 16;
                 case NodeType.Node4: return node + 16 + 4 + posInNode * 8;
                 case NodeType.Node4 | NodeType.Has12BPtrs: return node + 16 + 4 + posInNode * 12;
                 case NodeType.Node16: return node + 16 + 16 + posInNode * 8;
