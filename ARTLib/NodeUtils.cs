@@ -78,7 +78,7 @@ namespace ARTLib
         {
             if (node == IntPtr.Zero)
                 return;
-            var nodeHeader = Ptr2NodeHeader(node);
+            ref var nodeHeader = ref Ptr2NodeHeader(node);
             nodeHeader.Reference();
         }
 
@@ -127,15 +127,43 @@ namespace ARTLib
             return (size, ptr);
         }
 
+        internal static (uint PrefixSize, uint ValueSize) GetPrefixAndValueSize(IntPtr nodePtr)
+        {
+            ref NodeHeader header = ref Ptr2NodeHeader(nodePtr);
+            var baseSize = BaseSize(header._nodeType);
+            var prefixSize = (uint)header._keyPrefixLength;
+            var ptr = nodePtr + baseSize;
+            if (prefixSize == 0xffff)
+            {
+                unsafe { prefixSize = *(uint*)ptr; };
+                ptr += sizeof(uint);
+            }
+            uint size = 0;
+            if ((header._nodeType & NodeType.IsLeaf) == NodeType.IsLeaf)
+            {
+                if ((header._nodeType & NodeType.Has12BPtrs) == 0)
+                {
+                    unsafe { size = *(uint*)ptr; };
+                }
+                else
+                {
+                    size = 12;
+                }
+            }
+            return (prefixSize, size);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static int ReadLenFromPtr(IntPtr ptr)
         {
-            // Assumes Little Endian
+            AssertLittleEndian();
             unsafe { return *(byte*)ptr.ToPointer() >> 1; }
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static IntPtr SkipLenFromPtr(IntPtr ptr)
         {
-            // Assumes Little Endian
+            AssertLittleEndian();
             return ptr + 1;
         }
 
@@ -156,6 +184,15 @@ namespace ARTLib
                 case NodeType.Node256: return node + 16 + posInNode * 8;
                 case NodeType.Node256 | NodeType.Has12BPtrs: return node + 16 + posInNode * 12;
                 default: throw new InvalidOperationException();
+            }
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static void AssertLittleEndian()
+        {
+            if (!BitConverter.IsLittleEndian)
+            {
+                throw new NotSupportedException("Only Little Endian platform supported");
             }
         }
     }

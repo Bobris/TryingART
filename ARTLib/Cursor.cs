@@ -184,7 +184,8 @@ namespace ARTLib
 
         public void WriteValue(ReadOnlySpan<byte> content)
         {
-            throw new NotImplementedException();
+            AssertValid();
+            _rootNode._impl.WriteValue(_rootNode, _stack, content);
         }
     }
 }
