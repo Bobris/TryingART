@@ -13,7 +13,6 @@ namespace ARTLib
 
         internal IntPtr _root;
         internal ARTImpl _impl;
-        internal long _pairs;
         internal bool _writtable;
 
         public void Dispose()
@@ -26,7 +25,6 @@ namespace ARTLib
             var snapshot = new RootNode(_impl);
             snapshot._writtable = false;
             snapshot._root = _root;
-            snapshot._pairs = _pairs;
             NodeUtils.Reference(_root);
             return snapshot;
         }
@@ -38,7 +36,9 @@ namespace ARTLib
 
         public long GetCount()
         {
-            return _pairs;
+            if (_root == IntPtr.Zero) return 0;
+            ref var header = ref NodeUtils.Ptr2NodeHeader(_root);
+            return (long)header._recursiveChildCount;
         }
 
         public void RevertTo(IRootNode snapshot)
@@ -52,7 +52,6 @@ namespace ARTLib
                 NodeUtils.Reference(_root);
                 _impl.Dereference(oldRoot);
             }
-            _pairs = ((RootNode)snapshot)._pairs;
         }
     }
 }

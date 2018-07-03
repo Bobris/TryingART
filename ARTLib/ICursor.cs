@@ -19,7 +19,7 @@ namespace ARTLib
         int GetKeyLength();
         Span<byte> FillByKey(Span<byte> buffer);
         int GetValueLength();
-        Span<byte> FillByValue(Span<byte> buffer);
+        Span<byte> GetValue();
 
         void WriteValue(ReadOnlySpan<byte> content);
         bool Upsert(ReadOnlySpan<byte> key, ReadOnlySpan<byte> content);

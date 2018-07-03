@@ -131,33 +131,24 @@ namespace ARTLib
             return NodeUtils.ReadLenFromPtr(NodeUtils.PtrInNode(stackItem._node, stackItem._posInNode));
         }
 
-        public Span<byte> FillByValue(Span<byte> buffer)
+        public Span<byte> GetValue()
         {
             AssertValid();
             var stackItem = _stack[_stack.Count - 1];
             if (stackItem._posInNode == -1)
             {
                 var (size, ptr) = NodeUtils.GetValueSizeAndPtr(stackItem._node);
-                if (buffer.Length < size)
-                    throw new ArgumentOutOfRangeException(nameof(buffer), "Value has " + size + " bytes, but provided buffer has only " + buffer.Length);
-                unsafe { new Span<byte>(ptr.ToPointer(), (int)size).CopyTo(buffer); }
-                return buffer.Slice(0, (int)size);
+                unsafe { return new Span<byte>(ptr.ToPointer(), (int)size); }
             }
             var ptr2 = NodeUtils.PtrInNode(stackItem._node, stackItem._posInNode);
             if (_rootNode._impl.IsValue12)
             {
-                if (buffer.Length < 12)
-                    throw new ArgumentOutOfRangeException(nameof(buffer), "Value has 12 bytes, but provided buffer has only " + buffer.Length);
-                unsafe { new Span<byte>(ptr2.ToPointer(), 12).CopyTo(buffer); }
-                return buffer.Slice(0, 12);
+                unsafe { return new Span<byte>(ptr2.ToPointer(), 12); }
             }
             else
             {
                 var size2 = NodeUtils.ReadLenFromPtr(ptr2);
-                if (buffer.Length < size2)
-                    throw new ArgumentOutOfRangeException(nameof(buffer), "Value has " + size2 + " bytes, but provided buffer has only " + buffer.Length);
-                unsafe { new Span<byte>(NodeUtils.SkipLenFromPtr(ptr2).ToPointer(), size2).CopyTo(buffer); }
-                return buffer.Slice(0, size2);
+                unsafe { return new Span<byte>(NodeUtils.SkipLenFromPtr(ptr2).ToPointer(), size2); }
             }
         }
 

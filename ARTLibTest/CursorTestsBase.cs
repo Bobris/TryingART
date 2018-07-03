@@ -54,12 +54,14 @@ namespace ARTLibTest
         [MemberData(nameof(SampleKeys))]
         public void CanInsertFirstData(byte[] key)
         {
+            Assert.Equal(0, _root.GetCount());
             var val = GetSampleValue();
-            _cursor.Upsert(key, val);
+            Assert.True(_cursor.Upsert(key, val));
+            Assert.Equal(1, _root.GetCount());
             Assert.Equal(key.Length, _cursor.GetKeyLength());
             Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
             Assert.Equal(val.Length, _cursor.GetValueLength());
-            Assert.Equal(val.ToArray(), _cursor.FillByValue(new byte[val.Length]).ToArray());
+            Assert.Equal(val.ToArray(), _cursor.GetValue().ToArray());
         }
 
         [Theory]
@@ -70,18 +72,18 @@ namespace ARTLibTest
             var val2 = GetSampleValue(valueIndex2).ToArray();
             _cursor.Upsert(new byte[] { 1 }, val);
             Assert.Equal(val.Length, _cursor.GetValueLength());
-            Assert.Equal(val, _cursor.FillByValue(new byte[val.Length]).ToArray());
+            Assert.Equal(val, _cursor.GetValue().ToArray());
             _cursor.WriteValue(val2);
             Assert.Equal(val2.Length, _cursor.GetValueLength());
-            Assert.Equal(val2, _cursor.FillByValue(new byte[val2.Length]).ToArray());
+            Assert.Equal(val2, _cursor.GetValue().ToArray());
             _cursor.WriteValue(val);
             Assert.Equal(val.Length, _cursor.GetValueLength());
-            Assert.Equal(val, _cursor.FillByValue(new byte[val.Length]).ToArray());
+            Assert.Equal(val, _cursor.GetValue().ToArray());
             using (var snapshot = _root.Snapshot())
             {
                 _cursor.WriteValue(val2);
                 Assert.Equal(val2.Length, _cursor.GetValueLength());
-                Assert.Equal(val2, _cursor.FillByValue(new byte[val2.Length]).ToArray());
+                Assert.Equal(val2, _cursor.GetValue().ToArray());
             }
         }
     }
