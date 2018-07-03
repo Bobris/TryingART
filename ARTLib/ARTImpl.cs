@@ -551,18 +551,42 @@ namespace ARTLib
         {
             if (IsValue12)
                 CheckContent12(content);
-            if (rootNode._root == IntPtr.Zero)
+            stack.Clear();
+            var top = rootNode._root;
+            var keyOffset = 0;
+            while (true)
             {
-                var stackItem = new CursorItem(AllocateNode(NodeType.NodeLeaf | NodeType.IsLeaf, (uint)key.Length, (uint)content.Length), (uint)key.Length, -1, 0);
-                stack.Add(stackItem);
-                rootNode._root = stackItem._node;
-                var (size, ptr) = NodeUtils.GetPrefixSizeAndPtr(stackItem._node);
-                unsafe { key.CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
-                (size, ptr) = NodeUtils.GetValueSizeAndPtr(stackItem._node);
-                unsafe { content.CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
-                return true;
+                if (top == IntPtr.Zero)
+                {
+                    MakeUnique(rootNode, stack);
+                    var stackItem = new CursorItem(AllocateNode(NodeType.NodeLeaf | NodeType.IsLeaf, (uint)(key.Length - keyOffset), (uint)content.Length), (uint)key.Length, -1, 0);
+                    stack.Add(stackItem);
+                    var (size, ptr) = NodeUtils.GetPrefixSizeAndPtr(stackItem._node);
+                    unsafe { key.Slice(keyOffset).CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
+                    (size, ptr) = NodeUtils.GetValueSizeAndPtr(stackItem._node);
+                    unsafe { content.CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
+                    OverwriteNodePtrInStack(rootNode, stack, stack.Count - 1, stackItem._node);
+                    AdjustRecursiveChildCount(stack, stack.Count - 1, +1);
+                    return true;
+                }
+                ref var header = ref NodeUtils.Ptr2NodeHeader(top);
+                var (keyPrefixSize, KeyPrefixPtr) = NodeUtils.GetPrefixSizeAndPtr(top);
+                if (key.Length - keyOffset < keyPrefixSize)
+                {
+
+                }
+                throw new NotImplementedException();
             }
-            throw new NotImplementedException();
+        }
+
+        void AdjustRecursiveChildCount(List<CursorItem> stack, int upTo, int delta)
+        {
+            for (int i = 0; i < upTo; i++)
+            {
+                var stackItem = stack[i];
+                ref var header = ref NodeUtils.Ptr2NodeHeader(stackItem._node);
+                header._recursiveChildCount = (ulong)unchecked((long)header._recursiveChildCount + delta);
+            }
         }
     }
 }

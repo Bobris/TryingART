@@ -169,7 +169,6 @@ namespace ARTLib
 
         public bool Upsert(ReadOnlySpan<byte> key, ReadOnlySpan<byte> content)
         {
-            _stack.Clear();
             return _rootNode._impl.Upsert(_rootNode, _stack, key, content);
         }
 
