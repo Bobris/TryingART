@@ -103,15 +103,31 @@ namespace ARTLibTest
         [MemberData(nameof(SampleKeys2))]
         public void CanInsertSecondKey(byte[] key, byte[] key2)
         {
-            var val = GetSampleValue();
-            var val2 = GetSampleValue(3);
+            var val = GetSampleValue().ToArray();
+            var val2 = GetSampleValue(3).ToArray();
             Assert.True(_cursor.Upsert(key, val));
             Assert.True(_cursor.Upsert(key2, val2));
             Assert.Equal(key2.Length, _cursor.GetKeyLength());
             Assert.Equal(key2, _cursor.FillByKey(new byte[key2.Length]).ToArray());
             Assert.Equal(val2.Length, _cursor.GetValueLength());
-            Assert.Equal(val2.ToArray(), _cursor.GetValue().ToArray());
+            Assert.Equal(val2, _cursor.GetValue().ToArray());
             Assert.Equal(2, _root.GetCount());
         }
+
+        [Theory]
+        [MemberData(nameof(SampleKeys))]
+        public void SecondUpsertWithSameKeyJustOverwriteValue(byte[] key)
+        {
+            var val = GetSampleValue().ToArray();
+            var val2 = GetSampleValue(3).ToArray();
+            Assert.True(_cursor.Upsert(key, val));
+            Assert.False(_cursor.Upsert(key, val2));
+            Assert.Equal(key.Length, _cursor.GetKeyLength());
+            Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
+            Assert.Equal(val2.Length, _cursor.GetValueLength());
+            Assert.Equal(val2, _cursor.GetValue().ToArray());
+            Assert.Equal(1, _root.GetCount());
+        }
+
     }
 }

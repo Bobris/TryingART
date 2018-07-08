@@ -697,7 +697,16 @@ namespace ARTLib
                 if (keyPrefixSize == keyRest)
                 {
                     stack.Add(new CursorItem(top, (uint)key.Length, -1, 0));
-                    MakeUniqueLastResize(rootNode, stack, content.Length);
+                    if (header._nodeType.HasFlag(NodeType.IsLeaf) && (IsValue12 || NodeUtils.GetValueSizeAndPtr(top).Size == content.Length))
+                    {
+                        MakeUnique(rootNode, stack);
+                    }
+                    else
+                    {
+                        MakeUniqueLastResize(rootNode, stack, content.Length);
+                    }
+                    var (size, ptr) = NodeUtils.GetValueSizeAndPtr(stack[stack.Count - 1]._node);
+                    unsafe { content.CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
                     if (!header._nodeType.HasFlag(NodeType.IsLeaf))
                     {
                         AdjustRecursiveChildCount(stack, stack.Count, +1);
