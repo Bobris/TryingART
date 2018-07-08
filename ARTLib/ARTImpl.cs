@@ -621,7 +621,7 @@ namespace ARTLib
                 if (top == IntPtr.Zero)
                 {
                     // nodes on stack must be already unique
-                    if (IsValue12 && keyRest == 0 && stack.Count > 0)
+                    if (keyRest == 0 && (IsValue12 || content.Length < 8) && stack.Count > 0)
                     {
                         WriteContentInNode(stack[stack.Count - 1], content);
                         AdjustRecursiveChildCount(stack, stack.Count, +1);
@@ -679,9 +679,9 @@ namespace ARTLib
                         else
                         {
                             keyOffset += newKeyPrefixSize;
-                            var b = key[keyOffset];
-                            var pos = InsertChild(newNode, b);
-                            stack.Add(new CursorItem(newNode, (uint)keyOffset + 1, pos, b));
+                            var b2 = key[keyOffset];
+                            var pos2 = InsertChild(newNode, b2);
+                            stack.Add(new CursorItem(newNode, (uint)keyOffset + 1, pos2, b2));
                             top = IntPtr.Zero;
                             keyOffset++;
                             OverwriteNodePtrInStack(rootNode, stack, stack.Count - 1, newNode);
@@ -714,18 +714,99 @@ namespace ARTLib
                     }
                     return false;
                 }
+                var b = key[keyOffset + newKeyPrefixSize];
+                if ((header._nodeType & NodeType.NodeSizeMask) == NodeType.NodeLeaf)
+                {
+                    MakeUnique(rootNode, stack);
+                    var nodeType = NodeType.Node4 | NodeType.IsLeaf;
+                    var (topValueSize, topValuePtr) = NodeUtils.GetValueSizeAndPtr(top);
+                    var newNode = AllocateNode(nodeType, (uint)newKeyPrefixSize, topValueSize);
+                    try
+                    {
+                        ref var newHeader = ref NodeUtils.Ptr2NodeHeader(newNode);
+                        newHeader.ChildCount = 1;
+                        newHeader._recursiveChildCount = 1;
+                        var (size, ptr) = NodeUtils.GetPrefixSizeAndPtr(newNode);
+                        unsafe { key.Slice(keyOffset, newKeyPrefixSize).CopyTo(new Span<byte>(ptr.ToPointer(), newKeyPrefixSize)); }
+                        var (valueSize, valuePtr) = NodeUtils.GetValueSizeAndPtr(newNode);
+                        unsafe
+                        {
+                            new Span<byte>(topValuePtr.ToPointer(), (int)topValueSize).CopyTo(new Span<byte>(valuePtr.ToPointer(), (int)valueSize));
+                        }
+                        keyOffset += newKeyPrefixSize;
+                        stack.Add(new CursorItem(newNode, (uint)keyOffset + 1, 0, b));
+                        top = IntPtr.Zero;
+                        keyOffset++;
+                        OverwriteNodePtrInStack(rootNode, stack, stack.Count - 1, newNode);
+                        newNode = IntPtr.Zero;
+                        continue;
+                    }
+                    finally
+                    {
+                        Dereference(newNode);
+                    }
+                }
+                var pos = Find(top, b);
+                if (pos >= 0)
+                {
+                    keyOffset += newKeyPrefixSize + 1;
+                    stack.Add(new CursorItem(top, (uint)keyOffset, (short)pos, b));
+                    if (IsPtr(NodeUtils.PtrInNode(top, pos), out var newTop))
+                    {
+                        top = newTop;
+                        continue;
+                    }
+                    MakeUnique(rootNode, stack);
+
+                }
                 throw new NotImplementedException();
             }
         }
 
-        int NearestBinarySearch(ReadOnlySpan<byte> data, byte value)
+        bool IsPtr(IntPtr ptr, out IntPtr pointsTo)
+        {
+            if (IsValue12)
+            {
+                if (NodeUtils.IsPtr12Ptr(ptr))
+                {
+                    pointsTo = NodeUtils.Read12Ptr(ptr);
+                    return true;
+                }
+            }
+            else
+            {
+                var child = NodeUtils.ReadPtr(ptr);
+                if (NodeUtils.IsPtrPtr(child))
+                {
+                    pointsTo = child;
+                    return true;
+                }
+            }
+            pointsTo = IntPtr.Zero;
+            return false;
+        }
+
+        int Find(IntPtr nodePtr, byte b)
+        {
+            ref var header = ref NodeUtils.Ptr2NodeHeader(nodePtr);
+            if ((header._nodeType & NodeType.NodeSizeMask) == NodeType.Node256)
+                return b;
+            unsafe
+            {
+                var childernBytes = new ReadOnlySpan<byte>((nodePtr + 16).ToPointer(), header._childCount);
+                return BinarySearch(childernBytes, b);
+            }
+        }
+
+        int BinarySearch(ReadOnlySpan<byte> data, byte value)
         {
             var l = 0;
+            ref var d = ref MemoryMarshal.GetReference(data);
             var r = data.Length;
             while (l < r)
             {
-                var m = (int)(((uint)(l + r)) >> 1);
-                var diff = data[m] - value;
+                var m = (int)(((uint)l + (uint)r) >> 1);
+                var diff = Unsafe.Add(ref d, m) - value;
                 if (diff == 0) return m;
                 if (diff > 0)
                 {
@@ -736,7 +817,7 @@ namespace ARTLib
                     l = m + 1;
                 }
             }
-            return l;
+            return ~l;
         }
 
         short InsertChild(IntPtr nodePtr, byte b)
@@ -747,21 +828,19 @@ namespace ARTLib
             int pos;
             unsafe
             {
-                var childernBytes = new Span<byte>((nodePtr + 16).ToPointer(), header._childCount);
-                pos = NearestBinarySearch(childernBytes, b);
+                var childernBytes = new ReadOnlySpan<byte>((nodePtr + 16).ToPointer(), header._childCount);
+                pos = BinarySearch(childernBytes, b);
+                if (pos >= 0) return (short)pos;
+                pos = ~pos;
                 if (pos < childernBytes.Length)
                 {
-                    if (childernBytes[pos] == b)
-                    {
-                        return (short)pos;
-                    }
                     childernBytes.Slice(pos).CopyTo(new Span<byte>((nodePtr + 16).ToPointer(), header._childCount + 1).Slice(pos + 1));
-                    childernBytes[pos] = b;
                     var chPtr = NodeUtils.PtrInNode(nodePtr, pos);
                     var itemSize = IsValue12 ? 12 : 8;
                     var chSize = itemSize * (header._childCount - pos);
                     new Span<byte>(chPtr.ToPointer(), chSize).CopyTo(new Span<byte>((chPtr + itemSize).ToPointer(), chSize));
                 }
+                Marshal.WriteByte(nodePtr, 16 + pos, b);
                 header._childCount++;
                 InitializeZeroPtrValue(NodeUtils.PtrInNode(nodePtr, pos));
                 return (short)pos;
