@@ -86,5 +86,32 @@ namespace ARTLibTest
                 Assert.Equal(val2, _cursor.GetValue().ToArray());
             }
         }
+
+        public static IEnumerable<object[]> SampleKeys2 =>
+        new List<object[]>
+        {
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { } },
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 } },
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 , 2 } },
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 , 2, 2 } },
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 , 2, 4 } },
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 , 1 } },
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 , 3 } },
+        };
+
+        [Theory]
+        [MemberData(nameof(SampleKeys2))]
+        public void CanInsertSecondKey(byte[] key, byte[] key2)
+        {
+            var val = GetSampleValue();
+            var val2 = GetSampleValue(3);
+            Assert.True(_cursor.Upsert(key, val));
+            Assert.True(_cursor.Upsert(key2, val2));
+            Assert.Equal(key2.Length, _cursor.GetKeyLength());
+            Assert.Equal(key2, _cursor.FillByKey(new byte[key2.Length]).ToArray());
+            Assert.Equal(val2.Length, _cursor.GetValueLength());
+            Assert.Equal(val2.ToArray(), _cursor.GetValue().ToArray());
+            Assert.Equal(2, _root.GetCount());
+        }
     }
 }

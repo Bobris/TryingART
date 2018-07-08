@@ -50,6 +50,7 @@ namespace ARTLib
             nodeHeader._keyPrefixLength = (ushort)(keyPrefixLength >= 0xffffu ? 0xffffu : keyPrefixLength);
             nodeHeader._referenceCount = 1;
             nodeHeader._recursiveChildCount = 1;
+            unsafe { new Span<byte>(node.ToPointer(), baseSize).Slice(16).Clear(); }
             if (keyPrefixLength >= 0xffffu)
             {
                 unsafe { *(uint*)(node + baseSize).ToPointer() = keyPrefixLength; }
@@ -590,7 +591,7 @@ namespace ARTLib
             }
         }
 
-        unsafe void InitializeZeroSizeValue(IntPtr ptr)
+        unsafe void InitializeZeroPtrValue(IntPtr ptr)
         {
             if (IsValue12)
             {
@@ -601,8 +602,9 @@ namespace ARTLib
             }
             else
             {
-                NodeUtils.AssertLittleEndian();
-                *(byte*)ptr.ToPointer() = 1;
+                var v = new Span<uint>(ptr.ToPointer(), 2);
+                v[0] = 0;
+                v[1] = 0;
             }
         }
 
@@ -670,7 +672,7 @@ namespace ARTLib
                             unsafe { content.CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
                             keyOffset = key.Length;
                             AdjustRecursiveChildCount(stack, stack.Count, +1);
-                            OverwriteNodePtrInStack(rootNode, stack, stack.Count - 2, newNode);
+                            OverwriteNodePtrInStack(rootNode, stack, stack.Count - 1, newNode);
                             newNode = IntPtr.Zero;
                             return true;
                         }
@@ -682,7 +684,7 @@ namespace ARTLib
                             stack.Add(new CursorItem(newNode, (uint)keyOffset + 1, pos, b));
                             top = IntPtr.Zero;
                             keyOffset++;
-                            OverwriteNodePtrInStack(rootNode, stack, stack.Count - 2, newNode);
+                            OverwriteNodePtrInStack(rootNode, stack, stack.Count - 1, newNode);
                             newNode = IntPtr.Zero;
                             continue;
                         }
@@ -692,8 +694,40 @@ namespace ARTLib
                         Dereference(newNode);
                     }
                 }
+                if (keyPrefixSize == keyRest)
+                {
+                    stack.Add(new CursorItem(top, (uint)key.Length, -1, 0));
+                    MakeUniqueLastResize(rootNode, stack, content.Length);
+                    if (!header._nodeType.HasFlag(NodeType.IsLeaf))
+                    {
+                        AdjustRecursiveChildCount(stack, stack.Count, +1);
+                        return true;
+                    }
+                    return false;
+                }
                 throw new NotImplementedException();
             }
+        }
+
+        int NearestBinarySearch(ReadOnlySpan<byte> data, byte value)
+        {
+            var l = 0;
+            var r = data.Length;
+            while (l < r)
+            {
+                var m = (int)(((uint)(l + r)) >> 1);
+                var diff = data[m] - value;
+                if (diff == 0) return m;
+                if (diff > 0)
+                {
+                    r = m;
+                }
+                else
+                {
+                    l = m + 1;
+                }
+            }
+            return l;
         }
 
         short InsertChild(IntPtr nodePtr, byte b)
@@ -705,7 +739,7 @@ namespace ARTLib
             unsafe
             {
                 var childernBytes = new Span<byte>((nodePtr + 16).ToPointer(), header._childCount);
-                pos = childernBytes.BinarySearch(b, Comparer<byte>.Default);
+                pos = NearestBinarySearch(childernBytes, b);
                 if (pos < childernBytes.Length)
                 {
                     if (childernBytes[pos] == b)
@@ -717,10 +751,10 @@ namespace ARTLib
                     var chPtr = NodeUtils.PtrInNode(nodePtr, pos);
                     var itemSize = IsValue12 ? 12 : 8;
                     var chSize = itemSize * (header._childCount - pos);
-                    new Span<byte>(chPtr.ToPointer(),chSize).CopyTo(new Span<byte>((chPtr+itemSize).ToPointer(),chSize));
+                    new Span<byte>(chPtr.ToPointer(), chSize).CopyTo(new Span<byte>((chPtr + itemSize).ToPointer(), chSize));
                 }
                 header._childCount++;
-                InitializeZeroSizeValue(NodeUtils.PtrInNode(nodePtr, pos));
+                InitializeZeroPtrValue(NodeUtils.PtrInNode(nodePtr, pos));
                 return (short)pos;
             }
         }

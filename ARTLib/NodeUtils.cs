@@ -43,7 +43,7 @@ namespace ARTLib
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static bool IsPtrPtr(IntPtr child)
         {
-            return ((int)child & 1) == 0;
+            return ((long)child & 1) == 0;
         }
 
 
