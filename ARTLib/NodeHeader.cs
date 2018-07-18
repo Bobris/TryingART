@@ -34,5 +34,7 @@ namespace ARTLib
             get => (_childCount == 0 && IsNode256()) ? 256 : _childCount;
             set => _childCount = (byte)value;
         }
+
+        public bool IsFull { get => !IsNode256() && _childCount == NodeUtils.MaxChildren(_nodeType); }
     }
 }

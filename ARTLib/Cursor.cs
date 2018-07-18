@@ -128,7 +128,7 @@ namespace ARTLib
                 var (size, _) = NodeUtils.GetValueSizeAndPtr(stackItem._node);
                 return (int)size;
             }
-            return NodeUtils.ReadLenFromPtr(NodeUtils.PtrInNode(stackItem._node, stackItem._posInNode));
+            return (int)NodeUtils.ReadLenFromPtr(NodeUtils.PtrInNode(stackItem._node, stackItem._posInNode));
         }
 
         public Span<byte> GetValue()
@@ -148,7 +148,7 @@ namespace ARTLib
             else
             {
                 var size2 = NodeUtils.ReadLenFromPtr(ptr2);
-                unsafe { return new Span<byte>(NodeUtils.SkipLenFromPtr(ptr2).ToPointer(), size2); }
+                unsafe { return new Span<byte>(NodeUtils.SkipLenFromPtr(ptr2).ToPointer(), (int)size2); }
             }
         }
 

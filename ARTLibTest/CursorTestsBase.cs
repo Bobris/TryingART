@@ -129,5 +129,33 @@ namespace ARTLibTest
             Assert.Equal(1, _root.GetCount());
         }
 
+        [Fact]
+        public void MultipleInsertsInSingleTransaction()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[1];
+            for (var i = 0; i < 256; i++)
+            {
+                key[0] = (byte)i;
+                Assert.True(_cursor.Upsert(key, val));
+                Assert.Equal(i + 1, _root.GetCount());
+                Assert.Equal(key.Length, _cursor.GetKeyLength());
+                Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
+                Assert.Equal(val.Length, _cursor.GetValueLength());
+                Assert.Equal(val, _cursor.GetValue().ToArray());
+            }
+            key = new byte[2];
+            key[0] = 20;
+            for (var i = 0; i < 256; i++)
+            {
+                key[1] = (byte)i;
+                Assert.True(_cursor.Upsert(key, val));
+                Assert.Equal(256 + i + 1, _root.GetCount());
+                Assert.Equal(key.Length, _cursor.GetKeyLength());
+                Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
+                Assert.Equal(val.Length, _cursor.GetValueLength());
+                Assert.Equal(val, _cursor.GetValue().ToArray());
+            }
+        }
     }
 }

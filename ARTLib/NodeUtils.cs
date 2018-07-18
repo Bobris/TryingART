@@ -46,7 +46,6 @@ namespace ARTLib
             return ((long)child & 1) == 0;
         }
 
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static IntPtr ReadPtr(IntPtr ptr)
         {
@@ -154,10 +153,10 @@ namespace ARTLib
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static int ReadLenFromPtr(IntPtr ptr)
+        internal static uint ReadLenFromPtr(IntPtr ptr)
         {
             AssertLittleEndian();
-            unsafe { return *(byte*)ptr.ToPointer() >> 1; }
+            unsafe { return ((uint)*(byte*)ptr.ToPointer()) >> 1; }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -183,6 +182,19 @@ namespace ARTLib
                 case NodeType.Node48 | NodeType.Has12BPtrs: return node + 16 + 256 + posInNode * 12;
                 case NodeType.Node256: return node + 16 + posInNode * 8;
                 case NodeType.Node256 | NodeType.Has12BPtrs: return node + 16 + posInNode * 12;
+                default: throw new InvalidOperationException();
+            }
+        }
+        
+        internal static int MaxChildren(NodeType nodeType)
+        {
+            switch (nodeType & NodeType.NodeSizeMask)
+            {
+                case NodeType.NodeLeaf: return 0;
+                case NodeType.Node4: return 4;
+                case NodeType.Node16: return 16;
+                case NodeType.Node48: return 48;
+                case NodeType.Node256: return 256;
                 default: throw new InvalidOperationException();
             }
         }
