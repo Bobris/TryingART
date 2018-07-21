@@ -57,6 +57,7 @@ namespace ARTLib
                     if (span[i] != 0xEE)
                         throw new InvalidOperationException("Overwrite of block at end " + i);
                 }
+                new Span<byte>(ptr.ToPointer(), (int)size + 32).Fill(0xDD);
             }
             _wrapped.Deallocate(ptr);
         }

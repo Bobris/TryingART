@@ -185,6 +185,7 @@ namespace ARTLib
                 default:
                     throw new InvalidOperationException();
             }
+            ReferenceAllChildren(newNode);
             return newNode;
         }
 

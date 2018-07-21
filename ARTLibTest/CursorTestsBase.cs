@@ -146,10 +146,6 @@ namespace ARTLibTest
                 for (var j = 0; j < 256; j++)
                 {
                     key[0] = (byte)j;
-                    if ((j <= i) != _cursor.FindExact(key))
-                    {
-                        int kkk = 0;
-                    }
                     Assert.Equal(j <= i, _cursor.FindExact(key));
                 }
             }
