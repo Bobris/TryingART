@@ -16,8 +16,8 @@ namespace ARTLib
 
         public (uint Count, ulong Size) QueryAllocations()
         {
-            (uint Count, ulong Size) res = (0,0);
-            foreach(var i in _ptr2SizeMap)
+            (uint Count, ulong Size) res = (0, 0);
+            foreach (var i in _ptr2SizeMap)
             {
                 res = (res.Count + 1, res.Size + (ulong)i.Value.ToInt64());
             }
@@ -26,11 +26,14 @@ namespace ARTLib
 
         public IntPtr Allocate(IntPtr size)
         {
-            var res = _wrapped.Allocate(size);
+            var res = _wrapped.Allocate(size + 32);
             unsafe
             {
-                new Span<byte>(res.ToPointer(), size.ToInt32()).Fill(255);
+                new Span<byte>((res).ToPointer(), 16).Fill(0xBB);
+                new Span<byte>((res + 16).ToPointer(), size.ToInt32()).Fill(255);
+                new Span<byte>((res + size.ToInt32() + 16).ToPointer(), 16).Fill(0xEE);
             }
+            res += 16;
             _ptr2SizeMap.TryAdd(res, size);
             return res;
         }
@@ -39,6 +42,22 @@ namespace ARTLib
         {
             if (!_ptr2SizeMap.TryRemove(ptr, out var size))
                 throw new InvalidOperationException("Trying to free memory which is not allocated " + ptr.ToInt64());
+            ptr -= 16;
+            unsafe
+            {
+                var span = new Span<byte>(ptr.ToPointer(), 16);
+                for (int i = 0; i < 16; i++)
+                {
+                    if (span[i] != 0xBB)
+                        throw new InvalidOperationException("Overwrite of block at begging " + i);
+                }
+                span = new Span<byte>((ptr + size.ToInt32() + 16).ToPointer(), 16);
+                for (int i = 0; i < 16; i++)
+                {
+                    if (span[i] != 0xEE)
+                        throw new InvalidOperationException("Overwrite of block at end " + i);
+                }
+            }
             _wrapped.Deallocate(ptr);
         }
 
@@ -46,7 +65,7 @@ namespace ARTLib
         {
             foreach (var i in _ptr2SizeMap)
             {
-                _wrapped.Deallocate(i.Key);
+                Deallocate(i.Key);
             }
         }
     }

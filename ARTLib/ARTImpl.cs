@@ -43,7 +43,7 @@ namespace ARTLib
                 baseSize = NodeUtils.BaseSize(nodeType);
                 var size = baseSize + keyPrefixLength + (nodeType.HasFlag(NodeType.IsLeaf) ? valueLength : 0);
                 if (keyPrefixLength >= 0xffff) size += 4;
-                if ((nodeType & NodeType.IsLeaf) != 0) size += 4;
+                if (nodeType.HasFlag(NodeType.IsLeaf)) size += 4;
                 node = _allocator.Allocate((IntPtr)size);
             }
             ref var nodeHeader = ref NodeUtils.Ptr2NodeHeader(node);
