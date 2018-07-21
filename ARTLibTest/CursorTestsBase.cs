@@ -8,8 +8,7 @@ namespace ARTLibTest
     public abstract class CursorTestsBase : IDisposable
     {
         LeakDetectorWrapperAllocator _allocator;
-        ARTImpl _impl;
-        RootNode _root;
+        IRootNode _root;
         ICursor _cursor;
 
         public abstract bool Is12 { get; }
@@ -18,8 +17,7 @@ namespace ARTLibTest
         public CursorTestsBase()
         {
             _allocator = new LeakDetectorWrapperAllocator(new HGlobalAllocator());
-            _impl = new ARTImpl(_allocator, Is12);
-            _root = new RootNode(_impl);
+            _root = ARTImpl.CreateEmptyRoot(_allocator, Is12);
             _cursor = _root.CreateCursor();
         }
 
