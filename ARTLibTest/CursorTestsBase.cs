@@ -170,5 +170,65 @@ namespace ARTLibTest
                 }
             }
         }
+
+        [Fact]
+        public void MultipleInsertsInMultipleTransactions()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[1];
+            for (var i = 0; i < 256; i++)
+            {
+                key[0] = (byte)i;
+                var snapshot = _root.Snapshot();
+                Assert.True(_cursor.Upsert(key, val));
+                Assert.Equal(i + 1, _root.GetCount());
+                Assert.Equal(key.Length, _cursor.GetKeyLength());
+                Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
+                Assert.Equal(val.Length, _cursor.GetValueLength());
+                Assert.Equal(val, _cursor.GetValue().ToArray());
+                for (var j = 0; j < 256; j++)
+                {
+                    key[0] = (byte)j;
+                    Assert.Equal(j <= i, _cursor.FindExact(key));
+                }
+                var snapshotCursor = snapshot.CreateCursor();
+                for (var j = 0; j < 256; j++)
+                {
+                    key[0] = (byte)j;
+                    Assert.Equal(j < i, snapshotCursor.FindExact(key));
+                }
+                snapshot.Dispose();
+            }
+            key = new byte[2];
+            key[0] = 20;
+            for (var j = 0; j < 256; j++)
+            {
+                key[1] = (byte)j;
+                Assert.False(_cursor.FindExact(key));
+            }
+            for (var i = 0; i < 256; i++)
+            {
+                key[1] = (byte)i;
+                var snapshot = _root.Snapshot();
+                Assert.True(_cursor.Upsert(key, val));
+                Assert.Equal(256 + i + 1, _root.GetCount());
+                Assert.Equal(key.Length, _cursor.GetKeyLength());
+                Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
+                Assert.Equal(val.Length, _cursor.GetValueLength());
+                Assert.Equal(val, _cursor.GetValue().ToArray());
+                for (var j = 0; j < 256; j++)
+                {
+                    key[1] = (byte)j;
+                    Assert.Equal(j <= i, _cursor.FindExact(key));
+                }
+                var snapshotCursor = snapshot.CreateCursor();
+                for (var j = 0; j < 256; j++)
+                {
+                    key[1] = (byte)j;
+                    Assert.Equal(j < i, snapshotCursor.FindExact(key));
+                }
+                snapshot.Dispose();
+            }
+        }
     }
 }
