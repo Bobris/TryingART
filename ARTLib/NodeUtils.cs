@@ -126,32 +126,6 @@ namespace ARTLib
             return (size, ptr);
         }
 
-        internal static (uint PrefixSize, uint ValueSize) GetPrefixAndValueSize(IntPtr nodePtr)
-        {
-            ref NodeHeader header = ref Ptr2NodeHeader(nodePtr);
-            var baseSize = BaseSize(header._nodeType);
-            var prefixSize = (uint)header._keyPrefixLength;
-            var ptr = nodePtr + baseSize;
-            if (prefixSize == 0xffff)
-            {
-                unsafe { prefixSize = *(uint*)ptr; };
-                ptr += sizeof(uint);
-            }
-            uint size = 0;
-            if ((header._nodeType & NodeType.IsLeaf) == NodeType.IsLeaf)
-            {
-                if ((header._nodeType & NodeType.Has12BPtrs) == 0)
-                {
-                    unsafe { size = *(uint*)ptr; };
-                }
-                else
-                {
-                    size = 12;
-                }
-            }
-            return (prefixSize, size);
-        }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static uint ReadLenFromPtr(IntPtr ptr)
         {

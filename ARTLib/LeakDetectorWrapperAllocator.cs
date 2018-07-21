@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 
 namespace ARTLib
 {
@@ -26,6 +27,10 @@ namespace ARTLib
         public IntPtr Allocate(IntPtr size)
         {
             var res = _wrapped.Allocate(size);
+            unsafe
+            {
+                new Span<byte>(res.ToPointer(), size.ToInt32()).Fill(255);
+            }
             _ptr2SizeMap.TryAdd(res, size);
             return res;
         }

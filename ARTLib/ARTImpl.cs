@@ -168,7 +168,7 @@ namespace ARTLib
                         {
                             dstBytesPtr[srcBytesPtr[i]] = (byte)i;
                         }
-                        CopyMemory(NodeUtils.PtrInNode(nodePtr, 0), NodeUtils.PtrInNode(newNode, 0), header._childCount * PtrSize);
+                        CopyMemory(NodeUtils.PtrInNode(nodePtr, 0), NodeUtils.PtrInNode(newNode, 0), 16 * PtrSize);
                         break;
                     }
                 case NodeType.Node256:
@@ -731,13 +731,13 @@ namespace ARTLib
                             var (valueSize, valuePtr) = NodeUtils.GetValueSizeAndPtr(top);
                             unsafe
                             {
-                                WriteContentAndByteInNode(new CursorItem(newNode, 0, 0, Marshal.ReadByte(keyPrefixPtr, key.Length)), new Span<byte>(valuePtr.ToPointer(), (int)valueSize));
+                                WriteContentAndByteInNode(new CursorItem(newNode, 0, 0, Marshal.ReadByte(keyPrefixPtr, newKeyPrefixSize)), new Span<byte>(valuePtr.ToPointer(), (int)valueSize));
                             }
                         }
                         else
                         {
                             var newNode2 = CloneNodeWithKeyPrefixCut(top, newKeyPrefixSize + 1);
-                            WritePtrAndByteInNode(new CursorItem(newNode, 0, 0, Marshal.ReadByte(keyPrefixPtr, key.Length)), newNode2);
+                            WritePtrAndByteInNode(new CursorItem(newNode, 0, 0, Marshal.ReadByte(keyPrefixPtr, newKeyPrefixSize)), newNode2);
                         }
                         if (nodeType.HasFlag(NodeType.IsLeaf))
                         {
