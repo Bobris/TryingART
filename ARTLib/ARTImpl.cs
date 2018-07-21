@@ -682,6 +682,63 @@ namespace ARTLib
             }
         }
 
+        internal bool FindExact(RootNode rootNode, List<CursorItem> stack, ReadOnlySpan<byte> key)
+        {
+            stack.Clear();
+            var top = rootNode._root;
+            var keyOffset = 0;
+            while (true)
+            {
+                var keyRest = key.Length - keyOffset;
+                if (top == IntPtr.Zero)
+                {
+                    stack.Clear();
+                    return false;
+                }
+                ref var header = ref NodeUtils.Ptr2NodeHeader(top);
+                var (keyPrefixSize, keyPrefixPtr) = NodeUtils.GetPrefixSizeAndPtr(top);
+                var newKeyPrefixSize = FindFirstDifference(key.Slice(keyOffset), keyPrefixPtr, Math.Min(keyRest, (int)keyPrefixSize));
+                if (newKeyPrefixSize < keyPrefixSize)
+                {
+                    stack.Clear();
+                    return false;
+                }
+                if (keyPrefixSize == keyRest)
+                {
+                    if (!header._nodeType.HasFlag(NodeType.IsLeaf))
+                    {
+                        stack.Clear();
+                        return false;
+                    }
+                    stack.Add(new CursorItem(top, (uint)key.Length, -1, 0));
+                    return true;
+                }
+                if ((header._nodeType & NodeType.NodeSizeMask) == NodeType.NodeLeaf)
+                {
+                    stack.Clear();
+                    return false;
+                }
+                var b = key[keyOffset + newKeyPrefixSize];
+                var pos = Find(top, b);
+                if (pos >= 0)
+                {
+                    keyOffset += newKeyPrefixSize + 1;
+                    stack.Add(new CursorItem(top, (uint)keyOffset, (short)pos, b));
+                    if (IsPtr(NodeUtils.PtrInNode(top, pos), out var newTop))
+                    {
+                        top = newTop;
+                        continue;
+                    }
+                    if (key.Length == keyOffset)
+                    {
+                        return true;
+                    }
+                }
+                stack.Clear();
+                return false;
+            }
+        }
+
         internal bool Upsert(RootNode rootNode, List<CursorItem> stack, ReadOnlySpan<byte> key, ReadOnlySpan<byte> content)
         {
             if (IsValue12)

@@ -56,17 +56,17 @@ namespace ARTLib
             throw new NotImplementedException();
         }
 
-        public bool FindExact(Span<byte> key)
+        public bool FindExact(ReadOnlySpan<byte> key)
+        {
+            return _rootNode._impl.FindExact(_rootNode, _stack, key);
+        }
+
+        public bool FindFirst(ReadOnlySpan<byte> keyPrefix)
         {
             throw new NotImplementedException();
         }
 
-        public bool FindFirst(Span<byte> keyPrefix)
-        {
-            throw new NotImplementedException();
-        }
-
-        public bool FindLast(Span<byte> keyPrefix)
+        public bool FindLast(ReadOnlySpan<byte> keyPrefix)
         {
             throw new NotImplementedException();
         }
@@ -131,7 +131,7 @@ namespace ARTLib
             return (int)NodeUtils.ReadLenFromPtr(NodeUtils.PtrInNode(stackItem._node, stackItem._posInNode));
         }
 
-        public Span<byte> GetValue()
+        public ReadOnlySpan<byte> GetValue()
         {
             AssertValid();
             var stackItem = _stack[_stack.Count - 1];

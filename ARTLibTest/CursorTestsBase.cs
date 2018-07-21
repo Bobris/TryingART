@@ -143,9 +143,23 @@ namespace ARTLibTest
                 Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
                 Assert.Equal(val.Length, _cursor.GetValueLength());
                 Assert.Equal(val, _cursor.GetValue().ToArray());
+                for (var j = 0; j < 256; j++)
+                {
+                    key[0] = (byte)j;
+                    if ((j <= i) != _cursor.FindExact(key))
+                    {
+                        int kkk = 0;
+                    }
+                    Assert.Equal(j <= i, _cursor.FindExact(key));
+                }
             }
             key = new byte[2];
             key[0] = 20;
+            for (var j = 0; j < 256; j++)
+            {
+                key[1] = (byte)j;
+                Assert.False(_cursor.FindExact(key));
+            }
             for (var i = 0; i < 256; i++)
             {
                 key[1] = (byte)i;
@@ -155,6 +169,11 @@ namespace ARTLibTest
                 Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
                 Assert.Equal(val.Length, _cursor.GetValueLength());
                 Assert.Equal(val, _cursor.GetValue().ToArray());
+                for (var j = 0; j < 256; j++)
+                {
+                    key[1] = (byte)j;
+                    Assert.Equal(j <= i, _cursor.FindExact(key));
+                }
             }
         }
     }
