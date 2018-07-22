@@ -78,6 +78,76 @@ namespace ARTLib
             return node;
         }
 
+        internal long CalcIndex(List<CursorItem> stack)
+        {
+            var stackCount = stack.Count;
+            if (stackCount == 0)
+                return -1;
+            var res = 0L;
+            for (var i = 0; i < stackCount; i++)
+            {
+                var stackItem = stack[i];
+                if (stackItem._posInNode == -1)
+                    return res;
+                ref var header = ref NodeUtils.Ptr2NodeHeader(stackItem._node);
+                if (header._nodeType.HasFlag(NodeType.IsLeaf))
+                    res++;
+                switch (header._nodeType & NodeType.NodeSizeMask)
+                {
+                    case NodeType.Node4:
+                    case NodeType.Node16:
+                        for (int j = 0; j < stackItem._posInNode; j++)
+                        {
+                            if (IsPtr(NodeUtils.PtrInNode(stackItem._node, j), out var ptr))
+                            {
+                                res += (long)NodeUtils.Ptr2NodeHeader(ptr)._recursiveChildCount;
+                            }
+                            else
+                            {
+                                res++;
+                            }
+                        }
+                        break;
+                    case NodeType.Node48:
+                        unsafe
+                        {
+                            var span = new Span<byte>((stackItem._node + 16).ToPointer(), stackItem._byte);
+                            for (int j = 0; j < span.Length; j++)
+                            {
+                                if (span[j] == 255)
+                                    continue;
+                                if (IsPtr(NodeUtils.PtrInNode(stackItem._node, span[j]), out var ptr))
+                                {
+                                    res += (long)NodeUtils.Ptr2NodeHeader(ptr)._recursiveChildCount;
+                                }
+                                else
+                                {
+                                    res++;
+                                }
+                            }
+                        }
+                        break;
+                    case NodeType.Node256:
+                        for (int j = 0; j < stackItem._posInNode; j++)
+                        {
+                            if (IsPtr(NodeUtils.PtrInNode(stackItem._node, j), out var ptr))
+                            {
+                                if (ptr != IntPtr.Zero)
+                                {
+                                    res += (long)NodeUtils.Ptr2NodeHeader(ptr)._recursiveChildCount;
+                                }
+                            }
+                            else
+                            {
+                                res++;
+                            }
+                        }
+                        break;
+                }
+            }
+            return res;
+        }
+
         internal IntPtr CloneNode(IntPtr nodePtr)
         {
             ref NodeHeader header = ref NodeUtils.Ptr2NodeHeader(nodePtr);

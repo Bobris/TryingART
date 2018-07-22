@@ -30,7 +30,7 @@ namespace ARTLib
 
         public long CalcIndex()
         {
-            throw new NotImplementedException();
+            return _rootNode._impl.CalcIndex(_stack);
         }
 
         public ICursor Clone()

@@ -39,6 +39,12 @@ namespace ARTLibTest
             }
         }
 
+        [Fact]
+        public void InvalidCursorBehaviour()
+        {
+            Assert.Equal(-1, _cursor.CalcIndex());
+        }
+
         public static IEnumerable<object[]> SampleKeys =>
         new List<object[]>
         {
@@ -158,6 +164,7 @@ namespace ARTLibTest
             {
                 key[1] = (byte)i;
                 Assert.True(_cursor.Upsert(key, val));
+                Assert.Equal(20 + 1 + i, _cursor.CalcIndex());
                 Assert.Equal(256 + i + 1, _root.GetCount());
                 Assert.Equal(key.Length, _cursor.GetKeyLength());
                 Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
