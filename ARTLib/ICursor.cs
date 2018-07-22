@@ -25,6 +25,5 @@ namespace ARTLib
         bool Upsert(ReadOnlySpan<byte> key, ReadOnlySpan<byte> content);
         void Erase();
         long EraseTo(ICursor to);
-        long EraseAllWithKeyPrefixLength(int len);
     }
 }

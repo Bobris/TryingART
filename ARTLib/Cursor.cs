@@ -44,11 +44,6 @@ namespace ARTLib
             throw new NotImplementedException();
         }
 
-        public long EraseAllWithKeyPrefixLength(int len)
-        {
-            throw new NotImplementedException();
-        }
-
         public long EraseTo(ICursor to)
         {
             if (_rootNode != ((Cursor)to)._rootNode)
