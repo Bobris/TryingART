@@ -40,12 +40,19 @@ namespace ARTLib
 
         public void Erase()
         {
-            Debug.Assert(_rootNode._writtable);
+            AssertWrittable();            
             throw new NotImplementedException();
+        }
+
+        void AssertWrittable()
+        {
+            if (!_rootNode._writtable)
+                throw new InvalidOperationException("Cursor not writtable");
         }
 
         public long EraseTo(ICursor to)
         {
+            AssertWrittable();
             if (_rootNode != ((Cursor)to)._rootNode)
                 throw new ArgumentException("Cursor must be from same transaction", nameof(to));
             throw new NotImplementedException();
@@ -164,11 +171,13 @@ namespace ARTLib
 
         public bool Upsert(ReadOnlySpan<byte> key, ReadOnlySpan<byte> content)
         {
+            AssertWrittable();
             return _rootNode._impl.Upsert(_rootNode, _stack, key, content);
         }
 
         public void WriteValue(ReadOnlySpan<byte> content)
         {
+            AssertWrittable();
             AssertValid();
             _rootNode._impl.WriteValue(_rootNode, _stack, content);
         }
