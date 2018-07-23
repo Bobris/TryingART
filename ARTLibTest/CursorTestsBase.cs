@@ -239,7 +239,7 @@ namespace ARTLibTest
         }
 
         [Fact]
-        public void FirstFirstWorks()
+        public void FindFirstWorks()
         {
             var val = GetSampleValue().ToArray();
             var key = new byte[10];
@@ -354,7 +354,127 @@ namespace ARTLibTest
             }
             Assert.True(_cursor.FindFirst(key.AsSpan(0, 7)));
             Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+        }
 
+        [Fact]
+        public void FindLastWorks()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[10];
+            var keyBuffer = new byte[20];
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 0)));
+            _cursor.Upsert(key, val);
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 0)));
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 1)));
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 9)));
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 10)));
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+            key[5] = 1;
+            Assert.False(_cursor.FindLast(key));
+            key[5] = 0;
+            for (int i = 0; i < 4; i++)
+            {
+                key[6] = (byte)i;
+                _cursor.Upsert(key.AsSpan(0, 7), val);
+            }
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 9)));
+            key[6] = 4;
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 9)));
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 7)));
+            key[6] = 2;
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 8)));
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 7)));
+            Assert.Equal(key.AsSpan(0, 7).ToArray(), _cursor.FillByKey(keyBuffer).ToArray());
+            key[6] = 3;
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 6)));
+            Assert.Equal(key.AsSpan(0, 7).ToArray(), _cursor.FillByKey(keyBuffer).ToArray());
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 5)));
+            Assert.Equal(key.AsSpan(0, 7).ToArray(), _cursor.FillByKey(keyBuffer).ToArray());
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 2)));
+            Assert.Equal(key.AsSpan(0, 7).ToArray(), _cursor.FillByKey(keyBuffer).ToArray());
+            for (int i = 4; i < 16; i++)
+            {
+                key[6] = (byte)i;
+                _cursor.Upsert(key.AsSpan(0, 7), val);
+            }
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 9)));
+            key[6] = 16;
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 9)));
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 7)));
+            key[6] = 8;
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 8)));
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 7)));
+            Assert.Equal(key.AsSpan(0, 7).ToArray(), _cursor.FillByKey(keyBuffer).ToArray());
+            key[6] = 15;
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 6)));
+            Assert.Equal(key.AsSpan(0, 7).ToArray(), _cursor.FillByKey(keyBuffer).ToArray());
+            for (int i = 32; i < 32 + 16; i++)
+            {
+                key[6] = (byte)i;
+                _cursor.Upsert(key.AsSpan(0, 7), val);
+            }
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 9)));
+            key[6] = 240;
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 9)));
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 7)));
+            key[6] = 42;
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 8)));
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 7)));
+            Assert.Equal(key.AsSpan(0, 7).ToArray(), _cursor.FillByKey(keyBuffer).ToArray());
+            key[6] = 47;
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 6)));
+            Assert.Equal(key.AsSpan(0, 7).ToArray(), _cursor.FillByKey(keyBuffer).ToArray());
+            for (int i = 64; i < 255; i++)
+            {
+                key[6] = (byte)i;
+                _cursor.Upsert(key.AsSpan(0, 7), val);
+            }
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 9)));
+            key[6] = 24;
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 9)));
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 7)));
+            key[6] = 100;
+            Assert.False(_cursor.FindLast(key.AsSpan(0, 8)));
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 7)));
+            Assert.Equal(key.AsSpan(0, 7).ToArray(), _cursor.FillByKey(keyBuffer).ToArray());
+            key[6] = 254;
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 6)));
+            Assert.Equal(key.AsSpan(0, 7).ToArray(), _cursor.FillByKey(keyBuffer).ToArray());
+            key[1] = 1;
+            key[9] = 255;
+            _cursor.Upsert(key, val);
+            key[5] = 5;
+            _cursor.Upsert(key, val);
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 2)));
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+            key[5] = 0;
+            for (int i = 254; i >= 253; i--)
+            {
+                key[9] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            key[9] = 255;
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 7)));
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+            for (int i = 252; i >= 230; i--)
+            {
+                key[9] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            key[9] = 255;
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 7)));
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+            for (int i = 229; i >= 1; i--)
+            {
+                key[9] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            key[9] = 255;
+            Assert.True(_cursor.FindLast(key.AsSpan(0, 7)));
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
         }
     }
 }

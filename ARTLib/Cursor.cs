@@ -70,7 +70,7 @@ namespace ARTLib
 
         public bool FindLast(ReadOnlySpan<byte> keyPrefix)
         {
-            throw new NotImplementedException();
+            return _rootNode._impl.FindLast(_rootNode, _stack, keyPrefix);
         }
 
         public int GetKeyLength()

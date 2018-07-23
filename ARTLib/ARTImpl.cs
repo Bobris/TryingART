@@ -866,6 +866,58 @@ namespace ARTLib
             }
         }
 
+        internal bool FindLast(RootNode rootNode, List<CursorItem> stack, ReadOnlySpan<byte> keyPrefix)
+        {
+            stack.Clear();
+            var top = rootNode._root;
+            var keyOffset = 0;
+            while (true)
+            {
+                var keyRest = keyPrefix.Length - keyOffset;
+                if (top == IntPtr.Zero)
+                {
+                    stack.Clear();
+                    return false;
+                }
+                ref var header = ref NodeUtils.Ptr2NodeHeader(top);
+                var (keyPrefixSize, keyPrefixPtr) = NodeUtils.GetPrefixSizeAndPtr(top);
+                var newKeyPrefixSize = FindFirstDifference(keyPrefix.Slice(keyOffset), keyPrefixPtr, Math.Min(keyRest, (int)keyPrefixSize));
+                if (newKeyPrefixSize < keyPrefixSize && newKeyPrefixSize < keyRest)
+                {
+                    stack.Clear();
+                    return false;
+                }
+                if (newKeyPrefixSize == keyRest)
+                {
+                    PushRightMost(top, keyOffset, stack);
+                    return true;
+                }
+                if ((header._nodeType & NodeType.NodeSizeMask) == NodeType.NodeLeaf)
+                {
+                    stack.Clear();
+                    return false;
+                }
+                var b = keyPrefix[keyOffset + newKeyPrefixSize];
+                var pos = Find(top, b);
+                if (pos >= 0)
+                {
+                    keyOffset += newKeyPrefixSize + 1;
+                    stack.Add(new CursorItem(top, (uint)keyOffset, (short)pos, b));
+                    if (IsPtr(NodeUtils.PtrInNode(top, pos), out var newTop))
+                    {
+                        top = newTop;
+                        continue;
+                    }
+                    if (keyPrefix.Length == keyOffset)
+                    {
+                        return true;
+                    }
+                }
+                stack.Clear();
+                return false;
+            }
+        }
+
         void PushLeftMost(IntPtr top, int keyOffset, List<CursorItem> stack)
         {
             while (true)
@@ -913,7 +965,7 @@ namespace ARTLib
                             break;
                         }
                     case NodeType.Node256:
-                        for (int j = 0; j < 256; j++)
+                        for (int j = 0; true; j++)
                         {
                             if (IsPtr(NodeUtils.PtrInNode(top, j), out var ptr))
                             {
@@ -933,7 +985,77 @@ namespace ARTLib
                         }
                         break;
                 }
+            }
+        }
 
+        void PushRightMost(IntPtr top, int keyOffset, List<CursorItem> stack)
+        {
+            while (true)
+            {
+                ref var header = ref NodeUtils.Ptr2NodeHeader(top);
+                keyOffset += (int)NodeUtils.GetPrefixSizeAndPtr(top).Size;
+                if ((header._nodeType & NodeType.NodeSizeMask) == NodeType.NodeLeaf)
+                {
+                    stack.Add(new CursorItem(top, (uint)keyOffset, -1, 0));
+                    return;
+                }
+                keyOffset++;
+                switch (header._nodeType & NodeType.NodeSizeMask)
+                {
+                    case NodeType.Node4:
+                    case NodeType.Node16:
+                        {
+                            var pos = header._childCount - 1;
+                            stack.Add(new CursorItem(top, (uint)keyOffset, (short)pos, Marshal.ReadByte(top, 16 + pos)));
+                            if (IsPtr(NodeUtils.PtrInNode(top, pos), out var ptr))
+                            {
+                                top = ptr;
+                                break;
+                            }
+                            else
+                            {
+                                return;
+                            }
+                        }
+                    case NodeType.Node48:
+                        unsafe
+                        {
+                            var span = new Span<byte>((top + 16).ToPointer(), 256);
+                            for (int j = 255; true; j--)
+                            {
+                                if (span[j] == 255)
+                                    continue;
+                                stack.Add(new CursorItem(top, (uint)keyOffset, span[j], (byte)j));
+                                if (IsPtr(NodeUtils.PtrInNode(top, span[j]), out var ptr))
+                                {
+                                    top = ptr;
+                                    break;
+                                }
+                                return;
+                            }
+                            break;
+                        }
+                    case NodeType.Node256:
+                        for (int j = 255; true; j--)
+                        {
+                            if (IsPtr(NodeUtils.PtrInNode(top, j), out var ptr))
+                            {
+                                if (ptr != IntPtr.Zero)
+                                {
+                                    stack.Add(new CursorItem(top, (uint)keyOffset, (short)j, (byte)j));
+                                    top = ptr;
+                                    break;
+                                }
+                                continue;
+                            }
+                            else
+                            {
+                                stack.Add(new CursorItem(top, (uint)keyOffset, (short)j, (byte)j));
+                                return;
+                            }
+                        }
+                        break;
+                }
             }
         }
 
