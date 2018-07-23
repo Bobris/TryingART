@@ -476,5 +476,19 @@ namespace ARTLibTest
             Assert.True(_cursor.FindLast(key.AsSpan(0, 7)));
             Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
         }
+
+        [Fact]
+        public void FindExactSpecialCases()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            var keyBuffer = new byte[3];
+            for (int i = 0; i < 3; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            Assert.False(_cursor.FindExact(key.AsSpan(0, 1)));
+        }
     }
 }
