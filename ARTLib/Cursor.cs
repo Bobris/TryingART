@@ -65,7 +65,7 @@ namespace ARTLib
 
         public bool FindFirst(ReadOnlySpan<byte> keyPrefix)
         {
-            throw new NotImplementedException();
+            return _rootNode._impl.FindFirst(_rootNode, _stack, keyPrefix);
         }
 
         public bool FindLast(ReadOnlySpan<byte> keyPrefix)
