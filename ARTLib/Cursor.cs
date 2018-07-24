@@ -40,7 +40,7 @@ namespace ARTLib
 
         public void Erase()
         {
-            AssertWrittable();            
+            AssertWrittable();
             throw new NotImplementedException();
         }
 
@@ -156,12 +156,20 @@ namespace ARTLib
 
         public bool MoveNext()
         {
-            throw new NotImplementedException();
+            if (_stack.Count == 0)
+            {
+                return FindFirst(new ReadOnlySpan<byte>());
+            }
+            return _rootNode._impl.MoveNext(_stack);
         }
 
         public bool MovePrevious()
         {
-            throw new NotImplementedException();
+            if (_stack.Count == 0)
+            {
+                return FindLast(new ReadOnlySpan<byte>());
+            }
+            return _rootNode._impl.MovePrevious(_stack);
         }
 
         public bool SeekIndex(long index)

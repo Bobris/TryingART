@@ -148,6 +148,16 @@ namespace ARTLib
             return res;
         }
 
+        internal bool MoveNext(List<CursorItem> stack)
+        {
+            throw new NotImplementedException();
+        }
+
+        internal bool MovePrevious(List<CursorItem> stack)
+        {
+            throw new NotImplementedException();
+        }
+
         internal IntPtr CloneNode(IntPtr nodePtr)
         {
             ref NodeHeader header = ref NodeUtils.Ptr2NodeHeader(nodePtr);
