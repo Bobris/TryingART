@@ -150,12 +150,141 @@ namespace ARTLib
 
         internal bool MoveNext(List<CursorItem> stack)
         {
-            throw new NotImplementedException();
+            while (stack.Count > 0)
+            {
+                var stackItem = stack[stack.Count - 1];
+                ref var header = ref NodeUtils.Ptr2NodeHeader(stackItem._node);
+                if (stackItem._posInNode == -1) stackItem._keyOffset++;
+                switch (header._nodeType & NodeType.NodeSizeMask)
+                {
+                    case NodeType.NodeLeaf:
+                        goto up;
+                    case NodeType.Node4:
+                    case NodeType.Node16:
+                        {
+                            if (stackItem._posInNode == header._childCount - 1)
+                            {
+                                goto up;
+                            }
+                            stackItem._posInNode++;
+                            stackItem._byte = Marshal.ReadByte(stackItem._node, 16 + stackItem._posInNode);
+                            goto down;
+                        }
+                    case NodeType.Node48:
+                        unsafe
+                        {
+                            var span = new Span<byte>((stackItem._node + 16).ToPointer(), 256);
+                            for (int j = (stackItem._posInNode == -1) ? 0 : (stackItem._byte + 1); j < 256; j++)
+                            {
+                                if (span[j] == 255)
+                                    continue;
+                                stackItem._posInNode = span[j];
+                                stackItem._byte = (byte)j;
+                                goto down;
+                            }
+                            goto up;
+                        }
+                    case NodeType.Node256:
+                        for (int j = (stackItem._posInNode == -1) ? 0 : (stackItem._byte + 1); j < 256; j++)
+                        {
+                            if (IsPtr(NodeUtils.PtrInNode(stackItem._node, j), out var ptr2))
+                            {
+                                if (ptr2 == IntPtr.Zero)
+                                {
+                                    continue;
+                                }
+                            }
+                            stackItem._posInNode = (short)j;
+                            stackItem._byte = (byte)j;
+                            goto down;
+                        }
+                        goto up;
+                }
+                down:
+                stack[stack.Count - 1] = stackItem;
+                if (IsPtr(NodeUtils.PtrInNode(stackItem._node, stackItem._posInNode), out var ptr))
+                {
+                    PushLeftMost(ptr, (int)stackItem._keyOffset, stack);
+                }
+                return true;
+                up:
+                stack.RemoveAt(stack.Count - 1);
+            }
+            return false;
         }
 
         internal bool MovePrevious(List<CursorItem> stack)
         {
-            throw new NotImplementedException();
+            while (stack.Count > 0)
+            {
+                var stackItem = stack[stack.Count - 1];
+                ref var header = ref NodeUtils.Ptr2NodeHeader(stackItem._node);
+                if (stackItem._posInNode == -1)
+                {
+                    goto trullyUp;
+                }
+                switch (header._nodeType & NodeType.NodeSizeMask)
+                {
+                    case NodeType.Node4:
+                    case NodeType.Node16:
+                        {
+                            if (stackItem._posInNode == 0)
+                            {
+                                goto up;
+                            }
+                            stackItem._posInNode--;
+                            stackItem._byte = Marshal.ReadByte(stackItem._node, 16 + stackItem._posInNode);
+                            goto down;
+                        }
+                    case NodeType.Node48:
+                        unsafe
+                        {
+                            var span = new Span<byte>((stackItem._node + 16).ToPointer(), 256);
+                            for (int j = stackItem._byte - 1; j >= 0; j--)
+                            {
+                                if (span[j] == 255)
+                                    continue;
+                                stackItem._posInNode = span[j];
+                                stackItem._byte = (byte)j;
+                                goto down;
+                            }
+                            goto up;
+                        }
+                    case NodeType.Node256:
+                        for (int j = stackItem._byte - 1; j >= 0; j--)
+                        {
+                            if (IsPtr(NodeUtils.PtrInNode(stackItem._node, j), out var ptr2))
+                            {
+                                if (ptr2 == IntPtr.Zero)
+                                {
+                                    continue;
+                                }
+                            }
+                            stackItem._posInNode = (short)j;
+                            stackItem._byte = (byte)j;
+                            goto down;
+                        }
+                        goto up;
+                }
+                down:
+                stack[stack.Count - 1] = stackItem;
+                if (IsPtr(NodeUtils.PtrInNode(stackItem._node, stackItem._posInNode), out var ptr))
+                {
+                    PushRightMost(ptr, (int)stackItem._keyOffset, stack);
+                }
+                return true;
+                up:
+                if (header._nodeType.HasFlag(NodeType.IsLeaf))
+                {
+                    stackItem._posInNode = -1;
+                    stackItem._keyOffset--;
+                    stack[stack.Count - 1] = stackItem;
+                    return true;
+                }
+                trullyUp:
+                stack.RemoveAt(stack.Count - 1);
+            }
+            return false;
         }
 
         internal IntPtr CloneNode(IntPtr nodePtr)
