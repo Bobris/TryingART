@@ -685,15 +685,9 @@ namespace ARTLib
         void CheckContent12(ReadOnlySpan<byte> content)
         {
             if (content.Length != 12) throw new ArgumentOutOfRangeException(nameof(content));
-            unsafe
+            if (MemoryMarshal.Read<uint>(content) == uint.MaxValue)
             {
-                fixed (void* p = &content[0])
-                {
-                    if (Unsafe.ReadUnaligned<uint>(p) == uint.MaxValue)
-                    {
-                        throw new ArgumentException("Content cannot start with 0xFFFFFFFF when in 12 bytes mode");
-                    }
-                }
+                throw new ArgumentException("Content cannot start with 0xFFFFFFFF when in 12 bytes mode");
             }
         }
 
