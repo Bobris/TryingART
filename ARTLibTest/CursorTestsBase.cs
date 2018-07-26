@@ -490,5 +490,237 @@ namespace ARTLibTest
             }
             Assert.False(_cursor.FindExact(key.AsSpan(0, 1)));
         }
+
+        [Fact]
+        public void MoveNextWorks()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            var keyBuffer = new byte[4];
+            Assert.False(_cursor.MoveNext());
+            _cursor.Upsert(key, val);
+            Assert.False(_cursor.MoveNext());
+            Assert.True(_cursor.MoveNext());
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+            for (int i = 1; i < 3; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            Assert.False(_cursor.MoveNext());
+            for (int i = 0; i < 3; i++)
+            {
+                Assert.True(_cursor.MoveNext());
+                Assert.Equal(i, _cursor.CalcIndex());
+            }
+            for (int i = 3; i < 15; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            Assert.False(_cursor.MoveNext());
+            for (int i = 0; i < 15; i++)
+            {
+                Assert.True(_cursor.MoveNext());
+                Assert.Equal(i, _cursor.CalcIndex());
+            }
+            for (int i = 16; i < 41; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            Assert.False(_cursor.MoveNext());
+            for (int i = 0; i < 40; i++)
+            {
+                Assert.True(_cursor.MoveNext());
+                Assert.Equal(i, _cursor.CalcIndex());
+            }
+            for (int i = 45; i < 80; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            Assert.False(_cursor.MoveNext());
+            for (int i = 0; i < 74; i++)
+            {
+                Assert.True(_cursor.MoveNext());
+                Assert.Equal(i, _cursor.CalcIndex());
+            }
+        }
+
+        [Fact]
+        public void MoveNextWorksWithIsLeaf()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            var keyBuffer = new byte[4];
+            Assert.False(_cursor.MoveNext());
+            _cursor.Upsert(key, val);
+            _cursor.Upsert(key.AsSpan(0, 1), val);
+            Assert.True(_cursor.MoveNext());
+            Assert.False(_cursor.MoveNext());
+            Assert.True(_cursor.MoveNext());
+            Assert.True(_cursor.MoveNext());
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+            for (int i = 1; i < 3; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            Assert.False(_cursor.MoveNext());
+            for (int i = 0; i < 4; i++)
+            {
+                Assert.True(_cursor.MoveNext());
+                Assert.Equal(i, _cursor.CalcIndex());
+            }
+            for (int i = 3; i < 15; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            Assert.False(_cursor.MoveNext());
+            for (int i = 0; i < 16; i++)
+            {
+                Assert.True(_cursor.MoveNext());
+                Assert.Equal(i, _cursor.CalcIndex());
+            }
+            for (int i = 16; i < 41; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            Assert.False(_cursor.MoveNext());
+            for (int i = 0; i < 41; i++)
+            {
+                Assert.True(_cursor.MoveNext());
+                Assert.Equal(i, _cursor.CalcIndex());
+            }
+            for (int i = 45; i < 80; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            Assert.False(_cursor.MoveNext());
+            for (int i = 0; i < 75; i++)
+            {
+                Assert.True(_cursor.MoveNext());
+                Assert.Equal(i, _cursor.CalcIndex());
+            }
+        }
+
+        [Fact]
+        public void MovePreviousWorks()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            var keyBuffer = new byte[4];
+            Assert.False(_cursor.MovePrevious());
+            _cursor.Upsert(key, val);
+            Assert.False(_cursor.MovePrevious());
+            Assert.True(_cursor.MovePrevious());
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+            for (int i = 1; i < 3; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            for (int i = 0; i < 2; i++)
+            {
+                Assert.True(_cursor.MovePrevious());
+                Assert.Equal(1 - i, _cursor.CalcIndex());
+            }
+            Assert.False(_cursor.MovePrevious());
+            for (int i = 3; i < 15; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            for (int i = 0; i < 14; i++)
+            {
+                Assert.True(_cursor.MovePrevious());
+                Assert.Equal(13 - i, _cursor.CalcIndex());
+            }
+            Assert.False(_cursor.MovePrevious());
+            for (int i = 16; i < 41; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            for (int i = 0; i < 39; i++)
+            {
+                Assert.True(_cursor.MovePrevious());
+                Assert.Equal(38 - i, _cursor.CalcIndex());
+            }
+            Assert.False(_cursor.MovePrevious());
+            for (int i = 45; i < 80; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            for (int i = 0; i < 73; i++)
+            {
+                Assert.True(_cursor.MovePrevious());
+                Assert.Equal(72 - i, _cursor.CalcIndex());
+            }
+            Assert.False(_cursor.MovePrevious());
+        }
+
+        [Fact]
+        public void MovePreviousWorksWithIsLeaf()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            var keyBuffer = new byte[4];
+            Assert.False(_cursor.MovePrevious());
+            _cursor.Upsert(key, val);
+            _cursor.Upsert(key.AsSpan(0,1), val);
+            Assert.False(_cursor.MovePrevious());
+            Assert.True(_cursor.MovePrevious());
+            Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
+            for (int i = 1; i < 3; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                Assert.True(_cursor.MovePrevious());
+                Assert.Equal(2 - i, _cursor.CalcIndex());
+            }
+            Assert.False(_cursor.MovePrevious());
+            for (int i = 3; i < 15; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            for (int i = 0; i < 15; i++)
+            {
+                Assert.True(_cursor.MovePrevious());
+                Assert.Equal(14 - i, _cursor.CalcIndex());
+            }
+            Assert.False(_cursor.MovePrevious());
+            for (int i = 16; i < 41; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            for (int i = 0; i < 40; i++)
+            {
+                Assert.True(_cursor.MovePrevious());
+                Assert.Equal(39 - i, _cursor.CalcIndex());
+            }
+            Assert.False(_cursor.MovePrevious());
+            for (int i = 45; i < 80; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            for (int i = 0; i < 74; i++)
+            {
+                Assert.True(_cursor.MovePrevious());
+                Assert.Equal(73 - i, _cursor.CalcIndex());
+            }
+            Assert.False(_cursor.MovePrevious());
+        }
     }
 }
