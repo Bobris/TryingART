@@ -148,6 +148,119 @@ namespace ARTLib
             return res;
         }
 
+        internal bool SeekIndex(long index, IntPtr top, List<CursorItem> stack)
+        {
+            if (top == IntPtr.Zero)
+            {
+                return false;
+            }
+            var keyOffset = 0u;
+            while (true)
+            {
+                ref var header = ref NodeUtils.Ptr2NodeHeader(top);
+                if (index >= (long)header._recursiveChildCount)
+                    return false;
+                keyOffset += NodeUtils.GetPrefixSizeAndPtr(top).Size;
+                if (header._nodeType.HasFlag(NodeType.IsLeaf))
+                {
+                    if (index == 0)
+                    {
+                        stack.Add(new CursorItem(top, keyOffset, -1, 0));
+                        return true;
+                    }
+                    index--;
+                    keyOffset++;
+                }
+                switch (header._nodeType & NodeType.NodeSizeMask)
+                {
+                    case NodeType.Node4:
+                    case NodeType.Node16:
+                        for (int j = 0; j < header._childCount; j++)
+                        {
+                            if (IsPtr(NodeUtils.PtrInNode(top, j), out var ptr))
+                            {
+                                var rcc = (long)NodeUtils.Ptr2NodeHeader(ptr)._recursiveChildCount;
+                                if (index < rcc)
+                                {
+                                    stack.Add(new CursorItem(top, keyOffset, (short)j, Marshal.ReadByte(top, 16 + j)));
+                                    top = ptr;
+                                    break;
+                                }
+                                index -= rcc;
+                            }
+                            else
+                            {
+                                if (index == 0)
+                                {
+                                    stack.Add(new CursorItem(top, keyOffset, (short)j, Marshal.ReadByte(top, 16 + j)));
+                                    return true;
+                                }
+                                index--;
+                            }
+                        }
+                        break;
+                    case NodeType.Node48:
+                        unsafe
+                        {
+                            var span = new Span<byte>((top + 16).ToPointer(), 256);
+                            for (int j = 0; j < span.Length; j++)
+                            {
+                                if (span[j] == 255)
+                                    continue;
+                                if (IsPtr(NodeUtils.PtrInNode(top, span[j]), out var ptr))
+                                {
+                                    var rcc = (long)NodeUtils.Ptr2NodeHeader(ptr)._recursiveChildCount;
+                                    if (index < rcc)
+                                    {
+                                        stack.Add(new CursorItem(top, keyOffset, span[j], (byte)j));
+                                        top = ptr;
+                                        break;
+                                    }
+                                    index -= rcc;
+                                }
+                                else
+                                {
+                                    if (index == 0)
+                                    {
+                                        stack.Add(new CursorItem(top, keyOffset, span[j], (byte)j));
+                                        return true;
+                                    }
+                                    index--;
+                                }
+                            }
+                        }
+                        break;
+                    case NodeType.Node256:
+                        for (int j = 0; j < 256; j++)
+                        {
+                            if (IsPtr(NodeUtils.PtrInNode(top, j), out var ptr))
+                            {
+                                if (ptr == IntPtr.Zero)
+                                    continue;
+                                var rcc = (long)NodeUtils.Ptr2NodeHeader(ptr)._recursiveChildCount;
+                                if (index < rcc)
+                                {
+                                    stack.Add(new CursorItem(top, keyOffset, (short)j, (byte)j));
+                                    top = ptr;
+                                    break;
+                                }
+                                index -= rcc;
+                            }
+                            else
+                            {
+                                if (index == 0)
+                                {
+                                    stack.Add(new CursorItem(top, keyOffset, (short)j, (byte)j));
+                                    return true;
+                                }
+                                index--;
+                            }
+                        }
+                        break;
+                }
+            }
+        }
+
         internal bool MoveNext(List<CursorItem> stack)
         {
             while (stack.Count > 0)
@@ -1280,6 +1393,7 @@ namespace ARTLib
                 if (keyPrefixSize == keyRest)
                 {
                     stack.Add(new CursorItem(top, (uint)key.Length, -1, 0));
+                    var hadIsLeaf = header._nodeType.HasFlag(NodeType.IsLeaf);
                     if (header._nodeType.HasFlag(NodeType.IsLeaf) && (IsValue12 || NodeUtils.GetValueSizeAndPtr(top).Size == content.Length))
                     {
                         MakeUnique(rootNode, stack);
@@ -1290,7 +1404,7 @@ namespace ARTLib
                     }
                     var (size, ptr) = NodeUtils.GetValueSizeAndPtr(stack[stack.Count - 1]._node);
                     unsafe { content.CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
-                    if (!header._nodeType.HasFlag(NodeType.IsLeaf))
+                    if (!hadIsLeaf)
                     {
                         AdjustRecursiveChildCount(stack, stack.Count, +1);
                         return true;
@@ -1533,7 +1647,12 @@ namespace ARTLib
         {
             ref var header = ref NodeUtils.Ptr2NodeHeader(nodePtr);
             if ((header._nodeType & NodeType.NodeSizeMask) == NodeType.Node256)
+            {
+                pos = b;
+                header._childCount++;
+                InitializeZeroPtrValue(NodeUtils.PtrInNode(nodePtr, pos));
                 return;
+            }
             if ((header._nodeType & NodeType.NodeSizeMask) == NodeType.Node48)
             {
                 pos = header._childCount;

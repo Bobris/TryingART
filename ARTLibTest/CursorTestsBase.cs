@@ -657,10 +657,10 @@ namespace ARTLibTest
                 key[1] = (byte)i;
                 _cursor.Upsert(key, val);
             }
-            for (int i = 0; i < 73; i++)
+            for (int i = 0; i < 74; i++)
             {
                 Assert.True(_cursor.MovePrevious());
-                Assert.Equal(72 - i, _cursor.CalcIndex());
+                Assert.Equal(73 - i, _cursor.CalcIndex());
             }
             Assert.False(_cursor.MovePrevious());
         }
@@ -673,7 +673,7 @@ namespace ARTLibTest
             var keyBuffer = new byte[4];
             Assert.False(_cursor.MovePrevious());
             _cursor.Upsert(key, val);
-            _cursor.Upsert(key.AsSpan(0,1), val);
+            _cursor.Upsert(key.AsSpan(0, 1), val);
             Assert.False(_cursor.MovePrevious());
             Assert.True(_cursor.MovePrevious());
             Assert.Equal(key, _cursor.FillByKey(keyBuffer).ToArray());
@@ -715,12 +715,61 @@ namespace ARTLibTest
                 key[1] = (byte)i;
                 _cursor.Upsert(key, val);
             }
-            for (int i = 0; i < 74; i++)
+            for (int i = 0; i < 75; i++)
             {
                 Assert.True(_cursor.MovePrevious());
-                Assert.Equal(73 - i, _cursor.CalcIndex());
+                Assert.Equal(74 - i, _cursor.CalcIndex());
             }
             Assert.False(_cursor.MovePrevious());
+        }
+
+        [Fact]
+        public void SeekIndexWorks()
+        {
+            Assert.False(_cursor.SeekIndex(-1));
+            Assert.False(_cursor.SeekIndex(0));
+            Assert.False(_cursor.SeekIndex(1));
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            var total = 0;
+            _cursor.Upsert(key, val); total++; Assert.Equal(total, _root.GetCount());
+            CheckSeekIndex();
+            for (int i = 1; i < 3; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val); total++; Assert.Equal(total, _root.GetCount());
+            }
+            CheckSeekIndex();
+            for (int i = 4; i < 15; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val); total++; Assert.Equal(total, _root.GetCount());
+            }
+            CheckSeekIndex();
+            for (int i = 16; i < 40; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val); total++; Assert.Equal(total, _root.GetCount());
+            }
+            CheckSeekIndex();
+            for (int i = 41; i < 240; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val); total++; Assert.Equal(total, _root.GetCount());
+            }
+            CheckSeekIndex();
+            _cursor.Upsert(key.AsSpan(0, 1), val); total++; Assert.Equal(total, _root.GetCount());
+            CheckSeekIndex();
+        }
+
+        void CheckSeekIndex()
+        {
+            for (int i = 0; i < _root.GetCount(); i++)
+            {
+                Assert.True(_cursor.SeekIndex(i));
+                Assert.Equal(i, _cursor.CalcIndex());
+            }
+            Assert.False(_cursor.SeekIndex(_root.GetCount()));
         }
     }
 }

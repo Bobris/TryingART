@@ -41,7 +41,7 @@ namespace ARTLib
         public void Erase()
         {
             AssertWrittable();
-            throw new NotImplementedException();
+            EraseTo(this);
         }
 
         void AssertWrittable()
@@ -54,7 +54,12 @@ namespace ARTLib
         {
             AssertWrittable();
             if (_rootNode != ((Cursor)to)._rootNode)
-                throw new ArgumentException("Cursor must be from same transaction", nameof(to));
+                throw new ArgumentException("Both cursors must be from same transaction", nameof(to));
+            if (!to.IsValid())
+                throw new ArgumentException("Cursor must be valid", nameof(to));
+            if (!IsValid())
+                throw new ArgumentException("Cursor must be valid", "this");
+
             throw new NotImplementedException();
         }
 
@@ -174,7 +179,12 @@ namespace ARTLib
 
         public bool SeekIndex(long index)
         {
-            throw new NotImplementedException();
+            _stack.Clear();
+            if (index < 0)
+            {
+                return false;
+            }
+            return _rootNode._impl.SeekIndex(index, _rootNode._root, _stack);
         }
 
         public bool Upsert(ReadOnlySpan<byte> key, ReadOnlySpan<byte> content)
