@@ -176,6 +176,23 @@ namespace ARTLibTest
                     Assert.Equal(j <= i, _cursor.FindExact(key));
                 }
             }
+            Assert.False(_cursor.Upsert(key, val));
+            Assert.Equal(key.Length, _cursor.GetKeyLength());
+            Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
+            Assert.Equal(val.Length, _cursor.GetValueLength());
+            Assert.Equal(val, _cursor.GetValue().ToArray());
+            val = GetSampleValue(1).ToArray();
+            Assert.False(_cursor.Upsert(key, val));
+            Assert.Equal(key.Length, _cursor.GetKeyLength());
+            Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
+            Assert.Equal(val.Length, _cursor.GetValueLength());
+            Assert.Equal(val, _cursor.GetValue().ToArray());
+            val = GetSampleValue(0).ToArray();
+            Assert.False(_cursor.Upsert(key, val));
+            Assert.Equal(key.Length, _cursor.GetKeyLength());
+            Assert.Equal(key, _cursor.FillByKey(new byte[key.Length]).ToArray());
+            Assert.Equal(val.Length, _cursor.GetValueLength());
+            Assert.Equal(val, _cursor.GetValue().ToArray());
         }
 
         [Fact]

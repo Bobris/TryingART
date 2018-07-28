@@ -49,14 +49,18 @@ namespace ARTLib
             ref var nodeHeader = ref NodeUtils.Ptr2NodeHeader(node);
             nodeHeader._nodeType = nodeType;
             nodeHeader._childCount = 0;
-            nodeHeader._keyPrefixLength = (ushort)(keyPrefixLength >= 0xffffu ? 0xffffu : keyPrefixLength);
             nodeHeader._referenceCount = 1;
             nodeHeader._recursiveChildCount = 1;
             new Span<byte>(node.ToPointer(), baseSize).Slice(16).Clear();
             if (keyPrefixLength >= 0xffffu)
             {
+                nodeHeader._keyPrefixLength = (ushort)0xffffu;
                 *(uint*)(node + baseSize).ToPointer() = keyPrefixLength;
                 baseSize += 4;
+            }
+            else
+            {
+                nodeHeader._keyPrefixLength = (ushort)keyPrefixLength;
             }
             if (!IsValue12 && nodeType.HasFlag(NodeType.IsLeaf))
             {
@@ -1377,7 +1381,7 @@ namespace ARTLib
                         {
                             keyOffset += newKeyPrefixSize + 1;
                             var b2 = key[keyOffset - 1];
-                            var pos2 = InsertChild(newNode, b2);
+                            var pos2 = InsertChildIntoNode4(newNode, b2);
                             stack.Add(new CursorItem(newNode, (uint)keyOffset, pos2, b2));
                             top = IntPtr.Zero;
                             OverwriteNodePtrInStack(rootNode, stack, stack.Count - 1, newNode);
@@ -1449,6 +1453,12 @@ namespace ARTLib
                     stack.Add(new CursorItem(top, (uint)keyOffset, (short)pos, b));
                     if (IsPtr(NodeUtils.PtrInNode(top, pos), out var newTop))
                     {
+                        if (key.Length == keyOffset && IsValueInlinable(content) && (NodeUtils.Ptr2NodeHeader(newTop)._nodeType & NodeType.NodeSizeMask) == NodeType.NodeLeaf)
+                        {
+                            MakeUnique(rootNode, stack);
+                            WriteContentInNode(stack[stack.Count - 1], content);
+                            return false;
+                        }
                         top = newTop;
                         continue;
                     }
@@ -1609,35 +1619,20 @@ namespace ARTLib
             return ~l;
         }
 
-        unsafe short InsertChild(IntPtr nodePtr, byte b)
+        unsafe short InsertChildIntoNode4(IntPtr nodePtr, byte b)
         {
             ref var header = ref NodeUtils.Ptr2NodeHeader(nodePtr);
-            if ((header._nodeType & NodeType.NodeSizeMask) == NodeType.Node256)
-                return b;
-            int pos;
-            if ((header._nodeType & NodeType.NodeSizeMask) == NodeType.Node48)
+            var childernBytes = new ReadOnlySpan<byte>((nodePtr + 16).ToPointer(), header._childCount);
+            var pos = BinarySearch(childernBytes, b);
+            pos = ~pos;
+            if (pos < childernBytes.Length)
             {
-                pos = Marshal.ReadByte(nodePtr, 16 + b);
-                if (pos != 255)
-                    return (short)pos;
-                pos = header._childCount;
-                Marshal.WriteByte(nodePtr, 16 + b, (byte)pos);
+                childernBytes.Slice(pos).CopyTo(new Span<byte>((nodePtr + 16).ToPointer(), header._childCount + 1).Slice(pos + 1));
+                var chPtr = NodeUtils.PtrInNode(nodePtr, pos);
+                var chSize = PtrSize * (header._childCount - pos);
+                new Span<byte>(chPtr.ToPointer(), chSize).CopyTo(new Span<byte>((chPtr + PtrSize).ToPointer(), chSize));
             }
-            else
-            {
-                var childernBytes = new ReadOnlySpan<byte>((nodePtr + 16).ToPointer(), header._childCount);
-                pos = BinarySearch(childernBytes, b);
-                if (pos >= 0) return (short)pos;
-                pos = ~pos;
-                if (pos < childernBytes.Length)
-                {
-                    childernBytes.Slice(pos).CopyTo(new Span<byte>((nodePtr + 16).ToPointer(), header._childCount + 1).Slice(pos + 1));
-                    var chPtr = NodeUtils.PtrInNode(nodePtr, pos);
-                    var chSize = PtrSize * (header._childCount - pos);
-                    new Span<byte>(chPtr.ToPointer(), chSize).CopyTo(new Span<byte>((chPtr + PtrSize).ToPointer(), chSize));
-                }
-                Marshal.WriteByte(nodePtr, 16 + pos, b);
-            }
+            Marshal.WriteByte(nodePtr, 16 + pos, b);
             header._childCount++;
             InitializeZeroPtrValue(NodeUtils.PtrInNode(nodePtr, pos));
             return (short)pos;
