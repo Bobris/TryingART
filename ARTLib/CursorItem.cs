@@ -1,10 +1,20 @@
 ﻿using System;
+using System.Runtime.CompilerServices;
 
 namespace ARTLib
 {
     struct CursorItem
     {
         public CursorItem(IntPtr node, uint keyOffset, short posInNode, byte @byte)
+        {
+            _node = node;
+            _keyOffset = keyOffset;
+            _posInNode = posInNode;
+            _byte = @byte;
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public void Set(IntPtr node, uint keyOffset, short posInNode, byte @byte)
         {
             _node = node;
             _keyOffset = keyOffset;

@@ -1,24 +1,22 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 
 namespace ARTLib
 {
     internal class Cursor : ICursor
     {
         RootNode _rootNode;
-        readonly List<CursorItem> _stack;
+        StructList<CursorItem> _stack;
 
         public Cursor(RootNode rootNode)
         {
             _rootNode = rootNode;
-            _stack = new List<CursorItem>();
+            _stack = new StructList<CursorItem>();
         }
 
         Cursor(Cursor from)
         {
             _rootNode = from._rootNode;
-            _stack = new List<CursorItem>(from._stack);
+            _stack = new StructList<CursorItem>(from._stack);
         }
 
         public long CalcDistance(ICursor to)
@@ -59,23 +57,22 @@ namespace ARTLib
                 throw new ArgumentException("Cursor must be valid", nameof(to));
             if (!IsValid())
                 throw new ArgumentException("Cursor must be valid", "this");
-
-            throw new NotImplementedException();
+            return _rootNode._impl.EraseRange(_rootNode, ref _stack, ref ((Cursor)to)._stack);
         }
 
         public bool FindExact(ReadOnlySpan<byte> key)
         {
-            return _rootNode._impl.FindExact(_rootNode, _stack, key);
+            return _rootNode._impl.FindExact(_rootNode, ref _stack, key);
         }
 
         public bool FindFirst(ReadOnlySpan<byte> keyPrefix)
         {
-            return _rootNode._impl.FindFirst(_rootNode, _stack, keyPrefix);
+            return _rootNode._impl.FindFirst(_rootNode, ref _stack, keyPrefix);
         }
 
         public bool FindLast(ReadOnlySpan<byte> keyPrefix)
         {
-            return _rootNode._impl.FindLast(_rootNode, _stack, keyPrefix);
+            return _rootNode._impl.FindLast(_rootNode, ref _stack, keyPrefix);
         }
 
         public int GetKeyLength()
@@ -108,7 +105,7 @@ namespace ARTLib
             var i = 0;
             while (offset < keyLength)
             {
-                var stackItem = stack[i++];
+                ref var stackItem = ref stack[(uint)i++];
                 if (offset < stackItem._keyOffset - (stackItem._posInNode == -1 ? 0 : 1))
                 {
                     var (keyPrefixSize, keyPrefixPtr) = NodeUtils.GetPrefixSizeAndPtr(stackItem._node);
@@ -165,7 +162,7 @@ namespace ARTLib
             {
                 return FindFirst(new ReadOnlySpan<byte>());
             }
-            return _rootNode._impl.MoveNext(_stack);
+            return _rootNode._impl.MoveNext(ref _stack);
         }
 
         public bool MovePrevious()
@@ -174,7 +171,7 @@ namespace ARTLib
             {
                 return FindLast(new ReadOnlySpan<byte>());
             }
-            return _rootNode._impl.MovePrevious(_stack);
+            return _rootNode._impl.MovePrevious(ref _stack);
         }
 
         public bool SeekIndex(long index)
@@ -184,20 +181,20 @@ namespace ARTLib
             {
                 return false;
             }
-            return _rootNode._impl.SeekIndex(index, _rootNode._root, _stack);
+            return _rootNode._impl.SeekIndex(index, _rootNode._root, ref _stack);
         }
 
         public bool Upsert(ReadOnlySpan<byte> key, ReadOnlySpan<byte> content)
         {
             AssertWrittable();
-            return _rootNode._impl.Upsert(_rootNode, _stack, key, content);
+            return _rootNode._impl.Upsert(_rootNode, ref _stack, key, content);
         }
 
         public void WriteValue(ReadOnlySpan<byte> content)
         {
             AssertWrittable();
             AssertValid();
-            _rootNode._impl.WriteValue(_rootNode, _stack, content);
+            _rootNode._impl.WriteValue(_rootNode, ref _stack, content);
         }
     }
 }
