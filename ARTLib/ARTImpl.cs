@@ -83,6 +83,48 @@ namespace ARTLib
 
         internal long EraseRange(RootNode rootNode, ref StructList<CursorItem> left, ref StructList<CursorItem> right)
         {
+            var isUnique = true;
+            var leftIndex = 0u;
+            var rightIndex = 0u;
+            IntPtr newNode = IntPtr.Zero;
+            var children = 0L;
+            if (leftIndex < left.Count && rightIndex < right.Count)
+            {
+                ref var leftItem = ref left[leftIndex];
+                ref var rightItem = ref right[rightIndex];
+                if (leftItem._posInNode == rightItem._posInNode)
+                {
+                    if (leftItem._posInNode == -1)
+                    {
+                        (newNode, children) = EraseRangeFromNode(isUnique, leftItem._node, -1, 0, IntPtr.Zero, -1, 0, IntPtr.Zero);
+                        goto up;
+                    }
+                    if (leftIndex + 1 == left.Count)
+                    {
+                        (newNode, children) = EraseRangeFromNode(isUnique, leftItem._node, leftItem._posInNode, leftItem._byte, IntPtr.Zero, rightItem._posInNode, rightItem._byte, IntPtr.Zero);
+                        goto up;
+                    }
+                }
+            }
+            up:
+            if (newNode == IntPtr.Zero)
+            {
+                if (leftIndex > 0)
+                {
+                    leftIndex--;
+                    ref var leftItem = ref left[leftIndex];
+                    (newNode, children) = EraseRangeFromNode(isUnique, leftItem._node, leftItem._posInNode, leftItem._byte, IntPtr.Zero, leftItem._posInNode, leftItem._byte, IntPtr.Zero);
+                }
+            }
+            MakeUniqueAndOverwrite(rootNode, left.AsSpan(0, (int)leftIndex), newNode);
+            AdjustRecursiveChildCount(left.AsSpan(0, (int)leftIndex), -children);
+            left.Clear();
+            right.Clear();
+            return children;
+        }
+
+        (IntPtr newNode, long children) EraseRangeFromNode(bool isUnique, IntPtr node, short leftPos, byte leftByte, IntPtr leftNode, short rightPos, byte rightByte, IntPtr rightNode)
+        {
             throw new NotImplementedException();
         }
 
@@ -815,7 +857,7 @@ namespace ARTLib
             if (IsValue12)
             {
                 CheckContent12(content);
-                MakeUnique(rootNode, ref stack);
+                MakeUnique(rootNode, stack.AsSpan());
                 var stackItem = stack[stack.Count - 1];
                 if (stackItem._posInNode == -1)
                 {
@@ -836,7 +878,7 @@ namespace ARTLib
                     var (size, ptr) = NodeUtils.GetValueSizeAndPtr(stackItem._node);
                     if (size == content.Length)
                     {
-                        MakeUnique(rootNode, ref stack);
+                        MakeUnique(rootNode, stack.AsSpan());
                     }
                     else
                     {
@@ -848,7 +890,7 @@ namespace ARTLib
                 }
                 else
                 {
-                    MakeUnique(rootNode, ref stack);
+                    MakeUnique(rootNode, stack.AsSpan());
                     if (content.Length < 8)
                     {
                         WriteContentInNode(stack[stack.Count - 1], content);
@@ -867,9 +909,9 @@ namespace ARTLib
 
         void MakeUniqueLastResize(RootNode rootNode, ref StructList<CursorItem> stack, int length)
         {
-            for (uint i = 0; i < stack.Count; i++)
+            for (int i = 0; i < stack.Count; i++)
             {
-                ref var stackItem = ref stack[i];
+                ref var stackItem = ref stack[(uint)i];
                 ref var header = ref NodeUtils.Ptr2NodeHeader(stackItem._node);
                 if (header._referenceCount == 1 && i != stack.Count - 1)
                     continue;
@@ -882,24 +924,38 @@ namespace ARTLib
                 {
                     newNode = CloneNode(stackItem._node);
                 }
-                OverwriteNodePtrInStack(rootNode, ref stack, i, newNode);
+                OverwriteNodePtrInStack(rootNode, stack.AsSpan(), i, newNode);
             }
         }
 
-        void MakeUnique(RootNode rootNode, ref StructList<CursorItem> stack)
+        void MakeUniqueAndOverwrite(RootNode rootNode, Span<CursorItem> stack, IntPtr newNode)
         {
-            for (uint i = 0; i < stack.Count; i++)
+            MakeUnique(rootNode, stack);
+            if (stack.Length == 0)
+            {
+                Dereference(rootNode._root);
+                rootNode._root = newNode;
+            }
+            else
+            {
+                WritePtrInNode(stack[stack.Length - 1], newNode);
+            }
+        }
+
+        void MakeUnique(RootNode rootNode, Span<CursorItem> stack)
+        {
+            for (int i = 0; i < stack.Length; i++)
             {
                 var stackItem = stack[i];
                 ref var header = ref NodeUtils.Ptr2NodeHeader(stackItem._node);
                 if (header._referenceCount == 1)
                     continue;
                 var newNode = CloneNode(stackItem._node);
-                OverwriteNodePtrInStack(rootNode, ref stack, i, newNode);
+                OverwriteNodePtrInStack(rootNode, stack, i, newNode);
             }
         }
 
-        void OverwriteNodePtrInStack(RootNode rootNode, ref StructList<CursorItem> stack, uint i, IntPtr newNode)
+        void OverwriteNodePtrInStack(RootNode rootNode, Span<CursorItem> stack, int i, IntPtr newNode)
         {
             ref var stackItem = ref stack[i];
             stackItem._node = newNode;
@@ -1326,7 +1382,7 @@ namespace ARTLib
                     if (keyRest == 0 && (IsValue12 || content.Length < 8) && stack.Count > 0)
                     {
                         WriteContentInNode(stack[stack.Count - 1], content);
-                        AdjustRecursiveChildCount(ref stack, stack.Count, +1);
+                        AdjustRecursiveChildCount(stack.AsSpan(), +1);
                         return true;
                     }
                     ref var stackItem = ref stack.Add();
@@ -1335,8 +1391,8 @@ namespace ARTLib
                     unsafe { key.Slice(keyOffset).CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
                     (size, ptr) = NodeUtils.GetValueSizeAndPtr(stackItem._node);
                     unsafe { content.CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
-                    OverwriteNodePtrInStack(rootNode, ref stack, stack.Count - 1, stackItem._node);
-                    AdjustRecursiveChildCount(ref stack, stack.Count - 1, +1);
+                    OverwriteNodePtrInStack(rootNode, stack.AsSpan(), (int)stack.Count - 1, stackItem._node);
+                    AdjustRecursiveChildCount(stack.AsSpan(0, (int)stack.Count - 1), +1);
                     return true;
                 }
                 ref var header = ref NodeUtils.Ptr2NodeHeader(top);
@@ -1344,7 +1400,7 @@ namespace ARTLib
                 var newKeyPrefixSize = FindFirstDifference(key.Slice(keyOffset), keyPrefixPtr, Math.Min(keyRest, (int)keyPrefixSize));
                 if (newKeyPrefixSize < keyPrefixSize)
                 {
-                    MakeUnique(rootNode, ref stack);
+                    MakeUnique(rootNode, stack.AsSpan());
                     var nodeType = NodeType.Node4 | (newKeyPrefixSize == keyRest ? NodeType.IsLeaf : 0);
                     var newNode = AllocateNode(nodeType, (uint)newKeyPrefixSize, (uint)content.Length);
                     try
@@ -1373,8 +1429,8 @@ namespace ARTLib
                             (size, ptr) = NodeUtils.GetValueSizeAndPtr(newNode);
                             unsafe { content.CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
                             keyOffset = key.Length;
-                            AdjustRecursiveChildCount(ref stack, stack.Count, +1);
-                            OverwriteNodePtrInStack(rootNode, ref stack, stack.Count - 1, newNode);
+                            AdjustRecursiveChildCount(stack.AsSpan(), +1);
+                            OverwriteNodePtrInStack(rootNode, stack.AsSpan(), (int)stack.Count - 1, newNode);
                             newNode = IntPtr.Zero;
                             return true;
                         }
@@ -1385,7 +1441,7 @@ namespace ARTLib
                             var pos2 = InsertChildIntoNode4(newNode, b2);
                             stack.Add().Set(newNode, (uint)keyOffset, pos2, b2);
                             top = IntPtr.Zero;
-                            OverwriteNodePtrInStack(rootNode, ref stack, stack.Count - 1, newNode);
+                            OverwriteNodePtrInStack(rootNode, stack.AsSpan(), (int)stack.Count - 1, newNode);
                             newNode = IntPtr.Zero;
                             continue;
                         }
@@ -1401,7 +1457,7 @@ namespace ARTLib
                     var hadIsLeaf = header._nodeType.HasFlag(NodeType.IsLeaf);
                     if (header._nodeType.HasFlag(NodeType.IsLeaf) && (IsValue12 || NodeUtils.GetValueSizeAndPtr(top).Size == content.Length))
                     {
-                        MakeUnique(rootNode, ref stack);
+                        MakeUnique(rootNode, stack.AsSpan());
                     }
                     else
                     {
@@ -1411,7 +1467,7 @@ namespace ARTLib
                     unsafe { content.CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
                     if (!hadIsLeaf)
                     {
-                        AdjustRecursiveChildCount(ref stack, stack.Count, +1);
+                        AdjustRecursiveChildCount(stack.AsSpan(), +1);
                         return true;
                     }
                     return false;
@@ -1419,7 +1475,7 @@ namespace ARTLib
                 var b = key[keyOffset + newKeyPrefixSize];
                 if ((header._nodeType & NodeType.NodeSizeMask) == NodeType.NodeLeaf)
                 {
-                    MakeUnique(rootNode, ref stack);
+                    MakeUnique(rootNode, stack.AsSpan());
                     var nodeType = NodeType.Node4 | NodeType.IsLeaf;
                     var (topValueSize, topValuePtr) = NodeUtils.GetValueSizeAndPtr(top);
                     var newNode = AllocateNode(nodeType, (uint)newKeyPrefixSize, topValueSize);
@@ -1438,7 +1494,7 @@ namespace ARTLib
                         keyOffset += newKeyPrefixSize + 1;
                         stack.Add().Set(newNode, (uint)keyOffset, 0, b);
                         top = IntPtr.Zero;
-                        OverwriteNodePtrInStack(rootNode, ref stack, stack.Count - 1, newNode);
+                        OverwriteNodePtrInStack(rootNode, stack.AsSpan(), (int)stack.Count - 1, newNode);
                         newNode = IntPtr.Zero;
                         continue;
                     }
@@ -1456,14 +1512,14 @@ namespace ARTLib
                     {
                         if (key.Length == keyOffset && IsValueInlinable(content) && (NodeUtils.Ptr2NodeHeader(newTop)._nodeType & NodeType.NodeSizeMask) == NodeType.NodeLeaf)
                         {
-                            MakeUnique(rootNode, ref stack);
+                            MakeUnique(rootNode, stack.AsSpan());
                             WriteContentInNode(stack[stack.Count - 1], content);
                             return false;
                         }
                         top = newTop;
                         continue;
                     }
-                    MakeUnique(rootNode, ref stack);
+                    MakeUnique(rootNode, stack.AsSpan());
                     if (key.Length == keyOffset)
                     {
                         if (IsValueInlinable(content))
@@ -1476,7 +1532,7 @@ namespace ARTLib
                             stackItem.Set(AllocateNode(NodeType.NodeLeaf | NodeType.IsLeaf, 0, (uint)content.Length), (uint)key.Length, -1, 0);
                             var (size, ptr) = NodeUtils.GetValueSizeAndPtr(stackItem._node);
                             unsafe { content.CopyTo(new Span<byte>(ptr.ToPointer(), (int)size)); }
-                            OverwriteNodePtrInStack(rootNode, ref stack, stack.Count - 1, stackItem._node);
+                            OverwriteNodePtrInStack(rootNode, stack.AsSpan(), (int)stack.Count - 1, stackItem._node);
                         }
                         return false;
                     }
@@ -1496,7 +1552,7 @@ namespace ARTLib
                         b = key[keyOffset++];
                         stack.Add().Set(newNode, (uint)keyOffset, 0, b);
                         top = IntPtr.Zero;
-                        OverwriteNodePtrInStack(rootNode, ref stack, stack.Count - 1, newNode);
+                        OverwriteNodePtrInStack(rootNode, stack.AsSpan(), (int)stack.Count - 1, newNode);
                         newNode = IntPtr.Zero;
                         continue;
                     }
@@ -1506,7 +1562,7 @@ namespace ARTLib
                     }
                 }
                 pos = ~pos;
-                MakeUnique(rootNode, ref stack);
+                MakeUnique(rootNode, stack.AsSpan());
                 bool topChanged = false;
                 if (header.IsFull)
                 {
@@ -1523,7 +1579,7 @@ namespace ARTLib
                 stack.Add().Set(top, (uint)keyOffset, (short)pos, b);
                 if (topChanged)
                 {
-                    OverwriteNodePtrInStack(rootNode, ref stack, stack.Count - 1, top);
+                    OverwriteNodePtrInStack(rootNode, stack.AsSpan(), (int)stack.Count - 1, top);
                 }
                 top = IntPtr.Zero;
             }
@@ -1704,11 +1760,11 @@ namespace ARTLib
             }
         }
 
-        void AdjustRecursiveChildCount(ref StructList<CursorItem> stack, uint upTo, int delta)
+        void AdjustRecursiveChildCount(Span<CursorItem> stack, long delta)
         {
-            for (uint i = 0; i < upTo; i++)
+            for (int i = 0; i < stack.Length; i++)
             {
-                var stackItem = stack[i];
+                ref var stackItem = ref stack[i];
                 ref var header = ref NodeUtils.Ptr2NodeHeader(stackItem._node);
                 header._recursiveChildCount = (ulong)unchecked((long)header._recursiveChildCount + delta);
             }

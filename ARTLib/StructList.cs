@@ -58,5 +58,15 @@ namespace ARTLib
         }
 
         public uint Count { get => _count; }
+
+        public Span<T> AsSpan()
+        {
+            return _a.AsSpan(0, (int)_count);
+        }
+
+        public Span<T> AsSpan(int start, int length)
+        {
+            return AsSpan().Slice(start, length);
+        }
     }
 }
