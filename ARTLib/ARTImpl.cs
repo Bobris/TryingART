@@ -86,9 +86,9 @@ namespace ARTLib
             var isUnique = true;
             var leftIndex = 0u;
             var rightIndex = 0u;
-            IntPtr newNode = IntPtr.Zero;
+            var newNode = IntPtr.Zero;
             var children = 0L;
-            if (leftIndex < left.Count && rightIndex < right.Count)
+            while (true)
             {
                 ref var leftItem = ref left[leftIndex];
                 ref var rightItem = ref right[rightIndex];
@@ -104,7 +104,27 @@ namespace ARTLib
                         (newNode, children) = EraseRangeFromNode(isUnique, leftItem._node, leftItem._posInNode, leftItem._byte, IntPtr.Zero, rightItem._posInNode, rightItem._byte, IntPtr.Zero);
                         goto up;
                     }
+                    if (NodeUtils.Ptr2NodeHeader(leftItem._node)._referenceCount > 1)
+                        isUnique = false;
+                    leftIndex++;
+                    rightIndex++;
+                    continue;
                 }
+                var downUnique = isUnique;
+                if (NodeUtils.Ptr2NodeHeader(leftItem._node)._referenceCount > 1)
+                    downUnique = false;
+                var leftNode = IntPtr.Zero;
+                var rightNode = IntPtr.Zero;
+                if (leftIndex + 1 < left.Count)
+                {
+                    leftNode = EraseTillEnd(downUnique, left.AsSpan((int)leftIndex + 1));
+                }
+                if (rightIndex + 1 < right.Count)
+                {
+                    rightNode = EraseFromStart(downUnique, right.AsSpan((int)rightIndex + 1));
+                }
+                (newNode, children) = EraseRangeFromNode(isUnique, leftItem._node, leftItem._posInNode, leftItem._byte, leftNode, rightItem._posInNode, rightItem._byte, rightNode);
+                goto up;
             }
             up:
             if (newNode == IntPtr.Zero)
@@ -123,8 +143,20 @@ namespace ARTLib
             return children;
         }
 
-        (IntPtr newNode, long children) EraseRangeFromNode(bool isUnique, IntPtr node, short leftPos, byte leftByte, IntPtr leftNode, short rightPos, byte rightByte, IntPtr rightNode)
+        IntPtr EraseFromStart(bool downUnique, Span<CursorItem> span)
         {
+            throw new NotImplementedException();
+        }
+
+        IntPtr EraseTillEnd(bool downUnique, Span<CursorItem> span)
+        {
+            throw new NotImplementedException();
+        }
+
+        (IntPtr newNode, long children) EraseRangeFromNode(bool canBeInplace, IntPtr node, short leftPos, byte leftByte, IntPtr leftNode, short rightPos, byte rightByte, IntPtr rightNode)
+        {
+            if (NodeUtils.Ptr2NodeHeader(node)._referenceCount > 1)
+                canBeInplace = false;
             throw new NotImplementedException();
         }
 
