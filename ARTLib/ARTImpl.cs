@@ -115,15 +115,18 @@ namespace ARTLib
                     downUnique = false;
                 var leftNode = IntPtr.Zero;
                 var rightNode = IntPtr.Zero;
+                var childrenLeft = 0L;
+                var childrenRight = 0L;
                 if (leftIndex + 1 < left.Count)
                 {
-                    leftNode = EraseTillEnd(downUnique, left.AsSpan((int)leftIndex + 1));
+                    (leftNode, childrenLeft) = EraseTillEnd(downUnique, left.AsSpan((int)leftIndex + 1));
                 }
                 if (rightIndex + 1 < right.Count)
                 {
-                    rightNode = EraseFromStart(downUnique, right.AsSpan((int)rightIndex + 1));
+                    (rightNode, childrenRight) = EraseFromStart(downUnique, right.AsSpan((int)rightIndex + 1));
                 }
                 (newNode, children) = EraseRangeFromNode(isUnique, leftItem._node, leftItem._posInNode, leftItem._byte, leftNode, rightItem._posInNode, rightItem._byte, rightNode);
+                children += childrenLeft + childrenRight;
                 goto up;
             }
             up:
@@ -143,14 +146,115 @@ namespace ARTLib
             return children;
         }
 
-        IntPtr EraseFromStart(bool downUnique, Span<CursorItem> span)
+        (IntPtr newNode, long children) EraseFromStart(bool downUnique, Span<CursorItem> span)
         {
-            throw new NotImplementedException();
+            var downDownUnique = downUnique;
+            var node = span[0]._node;
+            if (NodeUtils.Ptr2NodeHeader(node)._referenceCount > 1)
+                downDownUnique = false;
+            var newNode = IntPtr.Zero;
+            var children = 0L;
+            if (span.Length > 1)
+            {
+                (newNode, children) = EraseFromStart(downDownUnique, span.Slice(1));
+            }
+            short startPos = -1;
+            byte startByte = 0;
+            (startPos, startByte) = GetStartPosAndByte(node);
+            var (resNode, resChildren) = EraseRangeFromNode(downUnique, span[0]._node, startPos, startByte, IntPtr.Zero, span[0]._posInNode, span[0]._byte, newNode);
+            return (resNode, resChildren + children);
         }
 
-        IntPtr EraseTillEnd(bool downUnique, Span<CursorItem> span)
+        (short pos, byte @byte) GetStartPosAndByte(IntPtr node)
         {
-            throw new NotImplementedException();
+            ref var header = ref NodeUtils.Ptr2NodeHeader(node);
+            if (header._nodeType.HasFlag(NodeType.IsLeaf))
+            {
+                return (-1, 0);
+            }
+            switch (header._nodeType & NodeType.NodeSizeMask)
+            {
+                case NodeType.Node4:
+                case NodeType.Node16:
+                    return (0, Marshal.ReadByte(node, 16));
+                case NodeType.Node48:
+                    for (var i = 0; i < 256; i++)
+                    {
+                        var pos = Marshal.ReadByte(node, 16 + i);
+                        if (pos == 255)
+                            continue;
+                        return (pos, (byte)i);
+                    }
+                    break;
+                case NodeType.Node256:
+                    for (var i= 0; i<256;i++)
+                    {
+                        if (IsPtr(NodeUtils.PtrInNode(node,i), out var ptr))
+                        {
+                            if (ptr == IntPtr.Zero)
+                                continue;
+                        }
+                        return ((short)i, (byte)i);
+                    }
+                    break;
+            }
+            throw new InvalidOperationException();
+        }
+
+        (IntPtr newNode, long children) EraseTillEnd(bool downUnique, Span<CursorItem> span)
+        {
+            var downDownUnique = downUnique;
+            var node = span[0]._node;
+            if (NodeUtils.Ptr2NodeHeader(node)._referenceCount > 1)
+                downDownUnique = false;
+            var newNode = IntPtr.Zero;
+            var children = 0L;
+            if (span.Length > 1)
+            {
+                (newNode, children) = EraseTillEnd(downDownUnique, span.Slice(1));
+            }
+            short endPos = -1;
+            byte endByte = 0;
+            (endPos, endByte) = GetEndPosAndByte(node);
+            var (resNode, resChildren) = EraseRangeFromNode(downUnique, span[0]._node, span[0]._posInNode, span[0]._byte, newNode, endPos, endByte, IntPtr.Zero);
+            return (resNode, resChildren + children);
+        }
+
+        (short pos, byte @byte) GetEndPosAndByte(IntPtr node)
+        {
+            ref var header = ref NodeUtils.Ptr2NodeHeader(node);
+            switch (header._nodeType & NodeType.NodeSizeMask)
+            {
+                case NodeType.NodeLeaf:
+                    return (-1, 0);
+                case NodeType.Node4:
+                case NodeType.Node16:
+                    {
+                        var pos = header._childCount - 1;
+                        return ((short)pos, Marshal.ReadByte(node, 16 + pos));
+                    }
+                case NodeType.Node48:
+                    for (var i = 255; i >= 0; i--)
+                    {
+                        var pos = Marshal.ReadByte(node, 16 + i);
+                        if (pos == 255)
+                            continue;
+                        return (pos, (byte)i);
+                    }
+                    break;
+                case NodeType.Node256:
+                    for (var i = 255; i >= 0; i--)
+                    {
+                        if (IsPtr(NodeUtils.PtrInNode(node, i), out var ptr))
+                        {
+                            if (ptr == IntPtr.Zero)
+                                continue;
+                        }
+                        return ((short)i, (byte)i);
+                    }
+                    break;
+            }
+            throw new InvalidOperationException();
         }
 
         (IntPtr newNode, long children) EraseRangeFromNode(bool canBeInplace, IntPtr node, short leftPos, byte leftByte, IntPtr leftNode, short rightPos, byte rightByte, IntPtr rightNode)
