@@ -788,5 +788,16 @@ namespace ARTLibTest
             }
             Assert.False(_cursor.SeekIndex(_root.GetCount()));
         }
+
+        [Fact]
+        public void SingleOnlyKeyEraseWorks()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            _cursor.Upsert(key, val);
+            Assert.Equal(1, _cursor.EraseTo(_cursor));
+            Assert.False(_cursor.IsValid());
+            Assert.Equal(0, _root.GetCount());
+        }
     }
 }

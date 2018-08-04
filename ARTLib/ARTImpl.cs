@@ -187,9 +187,41 @@ namespace ARTLib
                     }
                     break;
                 case NodeType.Node256:
-                    for (var i= 0; i<256;i++)
+                    for (var i = 0; i < 256; i++)
                     {
-                        if (IsPtr(NodeUtils.PtrInNode(node,i), out var ptr))
+                        if (IsPtr(NodeUtils.PtrInNode(node, i), out var ptr))
+                        {
+                            if (ptr == IntPtr.Zero)
+                                continue;
+                        }
+                        return ((short)i, (byte)i);
+                    }
+                    break;
+            }
+            throw new InvalidOperationException();
+        }
+
+        (short pos, byte @byte) GetStartPosAndByteSkipLeaf(IntPtr node)
+        {
+            ref var header = ref NodeUtils.Ptr2NodeHeader(node);
+            switch (header._nodeType & NodeType.NodeSizeMask)
+            {
+                case NodeType.Node4:
+                case NodeType.Node16:
+                    return (0, Marshal.ReadByte(node, 16));
+                case NodeType.Node48:
+                    for (var i = 0; i < 256; i++)
+                    {
+                        var pos = Marshal.ReadByte(node, 16 + i);
+                        if (pos == 255)
+                            continue;
+                        return (pos, (byte)i);
+                    }
+                    break;
+                case NodeType.Node256:
+                    for (var i = 0; i < 256; i++)
+                    {
+                        if (IsPtr(NodeUtils.PtrInNode(node, i), out var ptr))
                         {
                             if (ptr == IntPtr.Zero)
                                 continue;
@@ -259,8 +291,203 @@ namespace ARTLib
 
         (IntPtr newNode, long children) EraseRangeFromNode(bool canBeInplace, IntPtr node, short leftPos, byte leftByte, IntPtr leftNode, short rightPos, byte rightByte, IntPtr rightNode)
         {
-            if (NodeUtils.Ptr2NodeHeader(node)._referenceCount > 1)
+            ref var header = ref NodeUtils.Ptr2NodeHeader(node);
+            if (header._referenceCount > 1)
                 canBeInplace = false;
+            if ((header._nodeType & NodeType.NodeSizeMask) == NodeType.NodeLeaf)
+            {
+                return (IntPtr.Zero, 1);
+            }
+            var willBeIsLeaf = header._nodeType.HasFlag(NodeType.IsLeaf) && (leftPos > -1);
+            var willBeChildCount = header.ChildCount;
+            if (leftPos == -1)
+            {
+                (leftPos, leftByte) = GetStartPosAndByteSkipLeaf(node);
+            }
+            var children = 0L;
+            switch (header._nodeType & NodeType.NodeSizeMask)
+            {
+                case NodeType.Node4:
+                case NodeType.Node16:
+                    for (var i = leftPos; i <= rightPos; i++)
+                    {
+                        willBeChildCount--;
+                        if (IsPtr(NodeUtils.PtrInNode(node, i), out var ptr))
+                        {
+                            children += (long)NodeUtils.Ptr2NodeHeader(ptr)._recursiveChildCount;
+                        }
+                        else
+                        {
+                            children++;
+                        }
+                    }
+                    break;
+                case NodeType.Node48:
+                    unsafe
+                    {
+                        var span = new Span<byte>((node + 16).ToPointer(), 256);
+                        for (int i = leftByte; i <= rightByte; i++)
+                        {
+                            if (span[i] == 255)
+                                continue;
+                            willBeChildCount--;
+                            if (IsPtr(NodeUtils.PtrInNode(node, span[i]), out var ptr))
+                            {
+                                children += (long)NodeUtils.Ptr2NodeHeader(ptr)._recursiveChildCount;
+                            }
+                            else
+                            {
+                                children++;
+                            }
+                        }
+                    }
+                    break;
+                case NodeType.Node256:
+                    for (int j = leftByte; j <= rightByte; j++)
+                    {
+                        if (IsPtr(NodeUtils.PtrInNode(node, j), out var ptr))
+                        {
+                            if (ptr == IntPtr.Zero)
+                                continue;
+                            children += (long)NodeUtils.Ptr2NodeHeader(ptr)._recursiveChildCount;
+                        }
+                        else
+                        {
+                            children++;
+                        }
+                        willBeChildCount--;
+                    }
+                    break;
+            }
+            if (leftNode != IntPtr.Zero)
+            {
+                children -= (long)NodeUtils.Ptr2NodeHeader(leftNode)._recursiveChildCount;
+                willBeChildCount++;
+            }
+            if (rightNode != IntPtr.Zero)
+            {
+                children -= (long)NodeUtils.Ptr2NodeHeader(rightNode)._recursiveChildCount;
+                willBeChildCount++;
+            }
+            if (willBeChildCount == 0 && !willBeIsLeaf)
+            {
+                return (IntPtr.Zero, children);
+            }
+            var newNodeType = NodeType.NodeLeaf;
+            if (willBeChildCount > 48)
+            {
+                newNodeType = NodeType.Node256;
+            }
+            else if (willBeChildCount > 16)
+            {
+                newNodeType = NodeType.Node48;
+            }
+            else if (willBeChildCount > 4)
+            {
+                newNodeType = NodeType.Node16;
+            }
+            else if ((willBeChildCount > 1) || (willBeChildCount == 1 && willBeIsLeaf))
+            {
+                newNodeType = NodeType.Node4;
+            }
+            if (willBeIsLeaf)
+            {
+                newNodeType |= NodeType.IsLeaf;
+            }
+            newNodeType |= header._nodeType & NodeType.Has12BPtrs;
+            if (canBeInplace && header._nodeType == newNodeType)
+            {
+                switch (newNodeType & NodeType.NodeSizeMask)
+                {
+                    case NodeType.Node4:
+                    case NodeType.Node16:
+                        {
+                            if (leftNode != IntPtr.Zero)
+                            {
+                                WritePtrInNode(NodeUtils.PtrInNode(node, leftPos), leftNode);
+                                leftPos++;
+                            }
+                            if (rightNode != IntPtr.Zero)
+                            {
+                                WritePtrInNode(NodeUtils.PtrInNode(node, rightPos), rightNode);
+                                rightPos--;
+                            }
+                            if (leftPos <= rightPos)
+                            {
+                                for (var i = leftPos; i <= rightPos; i++)
+                                {
+                                    WritePtrInNode(NodeUtils.PtrInNode(node, i), IntPtr.Zero);
+                                }
+                                CopyMemory(node + 16 + rightPos + 1, node + 16 + leftPos, header._childCount - rightPos);
+                                CopyMemory(NodeUtils.PtrInNode(node, rightPos + 1), NodeUtils.PtrInNode(node, leftPos), (header._childCount - rightPos) * PtrSize);
+                            }
+                            break;
+                        }
+                    case NodeType.Node48:
+                        {
+                            if (leftNode != IntPtr.Zero)
+                            {
+                                WritePtrInNode(NodeUtils.PtrInNode(node, leftPos), leftNode);
+                                leftByte++;
+                            }
+                            if (rightNode != IntPtr.Zero)
+                            {
+                                WritePtrInNode(NodeUtils.PtrInNode(node, rightPos), rightNode);
+                                rightByte--;
+                            }
+                            if (willBeChildCount < header._childCount)
+                            {
+                                unsafe
+                                {
+                                    Span<byte> tempItems = stackalloc byte[willBeChildCount * PtrSize]; // maximum 47*12=564
+                                    var bytePtrs = new Span<byte>((node + 16).ToPointer(), 256);
+                                    var outPos = 0;
+                                    for (var i = 0; i < 256; i++)
+                                    {
+                                        var idx = bytePtrs[i];
+                                        if (idx == 255) continue;
+                                        if ((i >= leftByte) && (i <= rightByte))
+                                        {
+                                            WritePtrInNode(NodeUtils.PtrInNode(node, idx), IntPtr.Zero);
+                                        }
+                                        else
+                                        {
+                                            bytePtrs[i] = (byte)outPos;
+                                            new Span<byte>((node + 16).ToPointer(), PtrSize).CopyTo(tempItems.Slice(outPos * PtrSize));
+                                            outPos++;
+                                        }
+                                    }
+                                    tempItems.CopyTo(new Span<byte>((node + 16 + 256).ToPointer(), tempItems.Length));
+                                }
+                            }
+                            break;
+                        }
+                    case NodeType.Node256:
+                        {
+                            if (leftNode != IntPtr.Zero)
+                            {
+                                WritePtrInNode(NodeUtils.PtrInNode(node, leftPos), leftNode);
+                                leftByte++;
+                            }
+                            if (rightNode != IntPtr.Zero)
+                            {
+                                WritePtrInNode(NodeUtils.PtrInNode(node, rightPos), rightNode);
+                                rightByte--;
+                            }
+                            if (willBeChildCount < header._childCount)
+                            {
+                                for (int i = leftByte; i <= rightByte; i++)
+                                {
+                                    WritePtrInNode(NodeUtils.PtrInNode(node, i), IntPtr.Zero);
+                                }
+                            }
+                            break;
+                        }
+                }
+                header._childCount = (byte)willBeChildCount;
+                header._recursiveChildCount -= (ulong)children;
+                return (node, children);
+            }
             throw new NotImplementedException();
         }
 
@@ -1117,26 +1344,28 @@ namespace ARTLib
         void WritePtrInNode(in CursorItem stackItem, IntPtr newNode)
         {
             var ptr = NodeUtils.PtrInNode(stackItem._node, stackItem._posInNode);
-            unsafe
+            WritePtrInNode(ptr, newNode);
+        }
+
+        unsafe void WritePtrInNode(IntPtr ptrInNode, IntPtr newNode)
+        {
+            if (IsValue12)
             {
-                if (IsValue12)
+                if (NodeUtils.IsPtr12Ptr(ptrInNode))
                 {
-                    if (NodeUtils.IsPtr12Ptr(ptr))
-                    {
-                        Dereference(NodeUtils.Read12Ptr(ptr));
-                    }
-                    Unsafe.Write(ptr.ToPointer(), uint.MaxValue);
-                    Unsafe.Write((ptr + 4).ToPointer(), newNode);
+                    Dereference(NodeUtils.Read12Ptr(ptrInNode));
                 }
-                else
+                Unsafe.Write(ptrInNode.ToPointer(), uint.MaxValue);
+                Unsafe.Write((ptrInNode + 4).ToPointer(), newNode);
+            }
+            else
+            {
+                var child = NodeUtils.ReadPtr(ptrInNode);
+                if (NodeUtils.IsPtrPtr(child))
                 {
-                    var child = NodeUtils.ReadPtr(ptr);
-                    if (NodeUtils.IsPtrPtr(child))
-                    {
-                        Dereference(child);
-                    }
-                    Unsafe.Write(ptr.ToPointer(), newNode);
+                    Dereference(child);
                 }
+                Unsafe.Write(ptrInNode.ToPointer(), newNode);
             }
         }
 
