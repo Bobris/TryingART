@@ -822,5 +822,78 @@ namespace ARTLibTest
             Assert.Equal(2, _cursor.EraseTo(c2));
             Assert.Equal(4, _root.GetCount());
         }
+
+        [Fact]
+        public void EraseMiddle16Works()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            for (int i = 0; i < 2; i++)
+            {
+                key[0] = (byte)i;
+                _cursor.Upsert(key.AsSpan(0, 1), val);
+            }
+            for (int i = 0; i < 16; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            key[1] = 5;
+            _cursor.FindExact(key);
+            var c2 = _cursor.Clone();
+            c2.MoveNext();
+            c2.MoveNext();
+            Assert.Equal(3, _cursor.EraseTo(c2));
+            Assert.Equal(15, _root.GetCount());
+        }
+
+        [Fact]
+        public void EraseMiddle48Works()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            for (int i = 0; i < 2; i++)
+            {
+                key[0] = (byte)i;
+                _cursor.Upsert(key.AsSpan(0, 1), val);
+            }
+            for (int i = 0; i < 48; i++)
+            {
+                key[1] = (byte)(i*2);
+                _cursor.Upsert(key, val);
+            }
+            key[1] = 8;
+            _cursor.FindExact(key);
+            var c2 = _cursor.Clone();
+            c2.MoveNext();
+            c2.MoveNext();
+            Assert.Equal(3, _cursor.EraseTo(c2));
+            Assert.Equal(47, _root.GetCount());
+        }
+
+        [Fact]
+        public void EraseMiddle256Works()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            for (int i = 0; i < 2; i++)
+            {
+                key[0] = (byte)i;
+                _cursor.Upsert(key.AsSpan(0, 1), val);
+            }
+            for (int i = 0; i < 120; i++)
+            {
+                key[1] = (byte)(i * 2);
+                _cursor.Upsert(key, val);
+            }
+            key[1] = 10;
+            _cursor.FindExact(key);
+            var c2 = _cursor.Clone();
+            c2.MoveNext();
+            c2.MoveNext();
+            Assert.Equal(3, _cursor.EraseTo(c2));
+            Assert.Equal(119, _root.GetCount());
+        }
+
     }
 }

@@ -455,7 +455,7 @@ namespace ARTLib
                                         else
                                         {
                                             bytePtrs[i] = (byte)outPos;
-                                            new Span<byte>((node + 16).ToPointer(), PtrSize).CopyTo(tempItems.Slice(outPos * PtrSize));
+                                            new Span<byte>((node + 16 + 256 + idx * PtrSize).ToPointer(), PtrSize).CopyTo(tempItems.Slice(outPos * PtrSize));
                                             outPos++;
                                         }
                                     }
