@@ -490,6 +490,109 @@ namespace ARTLib
                 header._recursiveChildCount -= (ulong)children;
                 return (node, children);
             }
+            if (willBeChildCount == 1 && !willBeIsLeaf)
+            {
+                byte onlyByte = 0;
+                IntPtr onlyPtr = IntPtr.Zero;
+                if (leftNode != IntPtr.Zero)
+                {
+                    onlyByte = leftByte;
+                    onlyPtr = leftNode;
+                }
+                else if (rightNode != IntPtr.Zero)
+                {
+                    onlyByte = rightByte;
+                    onlyPtr = rightNode;
+                }
+                else
+                {
+                    switch (header._nodeType & NodeType.NodeSizeMask)
+                    {
+                        case NodeType.Node4:
+                        case NodeType.Node16:
+                            {
+                                if (leftPos > 0)
+                                {
+                                    onlyByte = Marshal.ReadByte(node, 16);
+                                    onlyPtr = NodeUtils.PtrInNode(node, 0);
+                                }
+                                else
+                                {
+                                    onlyByte = Marshal.ReadByte(node, 16 + rightPos + 1);
+                                    onlyPtr = NodeUtils.PtrInNode(node, rightPos + 1);
+                                }
+                                break;
+                            }
+                        case NodeType.Node48:
+                            {
+                                for (var i = 0; i < 256; i++)
+                                {
+                                    if (i == leftByte)
+                                    {
+                                        i = rightByte;
+                                        continue;
+                                    }
+                                    var idx = Marshal.ReadByte(node, 16 + i);
+                                    if (idx == 255) continue;
+                                    onlyByte = (byte)i;
+                                    onlyPtr = NodeUtils.PtrInNode(node, idx);
+                                    break;
+                                }
+                                break;
+                            }
+                        case NodeType.Node256:
+                            {
+                                for (int i = 0; i < 256; i++)
+                                {
+                                    if (i == leftByte)
+                                    {
+                                        i = rightByte;
+                                        continue;
+                                    }
+                                    if (IsPtr(NodeUtils.PtrInNode(node, i), out var j))
+                                    {
+                                        if (j == IntPtr.Zero)
+                                            continue;
+                                    }
+                                    onlyByte = (byte)i;
+                                    onlyPtr = NodeUtils.PtrInNode(node, i);
+                                    break;
+                                }
+                                break;
+                            }
+                    }
+                    if (IsPtr(onlyPtr, out var ptr))
+                    {
+                        onlyPtr = ptr;
+                        NodeUtils.Reference(onlyPtr);
+                    }
+                    else
+                    {
+                        var (prefixSize, prefixPtr) = NodeUtils.GetPrefixSizeAndPtr(node);
+                        var (valueSize, valuePtr) = GetValueSizeAndPtrFromPtrInNode(onlyPtr);
+                        var newNode = AllocateNode(NodeType.NodeLeaf | NodeType.IsLeaf | (IsValue12 ? NodeType.Has12BPtrs : 0), prefixSize + 1, valueSize);
+                        var (newPrefixSize, newPrefixPtr) = NodeUtils.GetPrefixSizeAndPtr(newNode);
+                        CopyMemory(prefixPtr, newPrefixPtr, (int)prefixSize);
+                        Marshal.WriteByte(newPrefixPtr + (int)prefixSize, onlyByte);
+                        if (valueSize > 0)
+                        {
+                            var (newValueSize, newValuePtr) = NodeUtils.GetValueSizeAndPtr(newNode);
+                            CopyMemory(valuePtr, newValuePtr, (int)valueSize);
+                        }
+                        return (newNode, children);
+                    }
+                }
+                // scope for consistent local variable names
+                {
+                    var (prefixSize, prefixPtr) = NodeUtils.GetPrefixSizeAndPtr(node);
+                    var newNode = CloneNodeWithKeyPrefixCut(onlyPtr, -(int)(prefixSize + 1));
+                    var (newPrefixSize, newPrefixPtr) = NodeUtils.GetPrefixSizeAndPtr(newNode);
+                    CopyMemory(prefixPtr, newPrefixPtr, (int)prefixSize);
+                    Marshal.WriteByte(newPrefixPtr, (int)prefixSize, onlyByte);
+                    Dereference(onlyPtr);
+                    return (newNode, children);
+                }
+            }
             throw new NotImplementedException();
         }
 
@@ -930,7 +1033,7 @@ namespace ARTLib
             var baseSize = NodeUtils.BaseSize(header._nodeType);
             var (keyPrefixSize, keyPrefixPtr) = NodeUtils.GetPrefixSizeAndPtr(nodePtr);
             var (valueSize, valuePtr) = NodeUtils.GetValueSizeAndPtr(nodePtr);
-            var newNode = AllocateNode(header._nodeType, keyPrefixSize - (uint)skipPrefix, valueSize);
+            var newNode = AllocateNode(header._nodeType, (uint)(keyPrefixSize - skipPrefix), valueSize);
             var (newKeyPrefixSize, newKeyPrefixPtr) = NodeUtils.GetPrefixSizeAndPtr(newNode);
             var (newValueSize, newValuePtr) = NodeUtils.GetValueSizeAndPtr(newNode);
             ref NodeHeader newHeader = ref NodeUtils.Ptr2NodeHeader(newNode);
@@ -938,7 +1041,14 @@ namespace ARTLib
             unsafe
             {
                 new Span<byte>(nodePtr.ToPointer(), baseSize).CopyTo(new Span<byte>(newNode.ToPointer(), baseSize));
-                new Span<byte>(keyPrefixPtr.ToPointer(), (int)keyPrefixSize).Slice(skipPrefix).CopyTo(new Span<byte>(newKeyPrefixPtr.ToPointer(), (int)newKeyPrefixSize));
+                if (skipPrefix < 0)
+                {
+                    new Span<byte>(keyPrefixPtr.ToPointer(), (int)keyPrefixSize).CopyTo(new Span<byte>(newKeyPrefixPtr.ToPointer(), (int)newKeyPrefixSize).Slice(-skipPrefix));
+                }
+                else
+                {
+                    new Span<byte>(keyPrefixPtr.ToPointer(), (int)keyPrefixSize).Slice(skipPrefix).CopyTo(new Span<byte>(newKeyPrefixPtr.ToPointer(), (int)newKeyPrefixSize));
+                }
                 if (header._nodeType.HasFlag(NodeType.IsLeaf))
                 {
                     new Span<byte>(valuePtr.ToPointer(), (int)valueSize).CopyTo(new Span<byte>(newValuePtr.ToPointer(), (int)newValueSize));

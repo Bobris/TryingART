@@ -859,7 +859,7 @@ namespace ARTLibTest
             }
             for (int i = 0; i < 48; i++)
             {
-                key[1] = (byte)(i*2);
+                key[1] = (byte)(i * 2);
                 _cursor.Upsert(key, val);
             }
             key[1] = 8;
@@ -895,5 +895,49 @@ namespace ARTLibTest
             Assert.Equal(119, _root.GetCount());
         }
 
+        [Theory]
+        [InlineData(4)]
+        [InlineData(16)]
+        [InlineData(48)]
+        [InlineData(100)]
+        public void EraseToOneChild(int count)
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            for (int i = 0; i < count; i++)
+            {
+                key[1] = (byte)(i * 2);
+                _cursor.Upsert(key, val);
+            }
+            key[1] = 2;
+            _cursor.FindExact(key);
+            var c2 = _cursor.Clone();
+            c2.FindLast(new ReadOnlySpan<byte>());
+            Assert.Equal(count - 1, _cursor.EraseTo(c2));
+            Assert.Equal(1, _root.GetCount());
+            _cursor.FindFirst(new ReadOnlySpan<byte>());
+            _cursor.FillByKey(key);
+            Assert.Equal(0, key[0]);
+            Assert.Equal(0, key[1]);
+            Assert.Equal(val, _cursor.GetValue().ToArray());
+            _cursor.Erase();
+            for (int i = 0; i < count; i++)
+            {
+                key[1] = (byte)(i * 2);
+                _cursor.Upsert(key, val);
+            }
+            key[1] = 0;
+            _cursor.FindExact(key);
+            c2 = _cursor.Clone();
+            c2.FindLast(new ReadOnlySpan<byte>());
+            c2.MovePrevious();
+            Assert.Equal(count - 1, _cursor.EraseTo(c2));
+            Assert.Equal(1, _root.GetCount());
+            _cursor.FindFirst(new ReadOnlySpan<byte>());
+            _cursor.FillByKey(key);
+            Assert.Equal(0, key[0]);
+            Assert.Equal((count - 1) * 2, key[1]);
+            Assert.Equal(val, _cursor.GetValue().ToArray());
+        }
     }
 }
