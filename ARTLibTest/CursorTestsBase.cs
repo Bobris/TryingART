@@ -799,5 +799,28 @@ namespace ARTLibTest
             Assert.False(_cursor.IsValid());
             Assert.Equal(0, _root.GetCount());
         }
+
+        [Fact]
+        public void EraseMiddle4Works()
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            for (int i = 0; i < 2; i++)
+            {
+                key[0] = (byte)i;
+                _cursor.Upsert(key.AsSpan(0, 1), val);
+            }
+            for (int i = 0; i < 4; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            key[1] = 1;
+            _cursor.FindExact(key);
+            var c2 = _cursor.Clone();
+            c2.MoveNext();
+            Assert.Equal(2, _cursor.EraseTo(c2));
+            Assert.Equal(4, _root.GetCount());
+        }
     }
 }

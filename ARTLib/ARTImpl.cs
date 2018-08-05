@@ -120,10 +120,12 @@ namespace ARTLib
                 if (leftIndex + 1 < left.Count)
                 {
                     (leftNode, childrenLeft) = EraseTillEnd(downUnique, left.AsSpan((int)leftIndex + 1));
+                    if (leftNode == IntPtr.Zero) childrenLeft = 0;
                 }
                 if (rightIndex + 1 < right.Count)
                 {
                     (rightNode, childrenRight) = EraseFromStart(downUnique, right.AsSpan((int)rightIndex + 1));
+                    if (rightNode == IntPtr.Zero) childrenRight = 0;
                 }
                 (newNode, children) = EraseRangeFromNode(isUnique, leftItem._node, leftItem._posInNode, leftItem._byte, leftNode, rightItem._posInNode, rightItem._byte, rightNode);
                 children += childrenLeft + childrenRight;
