@@ -593,7 +593,198 @@ namespace ARTLib
                     return (newNode, children);
                 }
             }
-            throw new NotImplementedException();
+            // scope for consistent local variable names
+            {
+                var (prefixSize, prefixPtr) = NodeUtils.GetPrefixSizeAndPtr(node);
+                var (valueSize, valuePtr) = GetValueSizeAndPtrFromPtrInNode(node);
+                var newNode = AllocateNode(newNodeType, prefixSize, valueSize);
+                if (prefixSize > 0)
+                {
+                    var (newPrefixSize, newPrefixPtr) = NodeUtils.GetPrefixSizeAndPtr(newNode);
+                    CopyMemory(prefixPtr, newPrefixPtr, (int)prefixSize);
+                }
+                if (willBeIsLeaf)
+                {
+                    var (newValueSize, newValuePtr) = NodeUtils.GetValueSizeAndPtr(newNode);
+                    CopyMemory(valuePtr, newValuePtr, (int)valueSize);
+                }
+                Pusher pusher = new Pusher(newNode, newNodeType);
+                switch (header._nodeType & NodeType.NodeSizeMask)
+                {
+                    case NodeType.Node4:
+                    case NodeType.Node16:
+                        {
+                            for (var i = 0; i <= header._childCount; i++)
+                            {
+                                if (i == leftPos)
+                                {
+                                    if (leftNode != IntPtr.Zero)
+                                        pusher.PushPtr(leftByte, leftNode);
+                                    i = rightPos;
+                                    if (rightNode != IntPtr.Zero)
+                                    {
+                                        pusher.PushPtr(rightByte, rightNode);
+                                    }
+                                    continue;
+                                }
+                                pusher.Push(Marshal.ReadByte(node, 16 + i), NodeUtils.PtrInNode(node, i));
+                            }
+                            break;
+                        }
+                    case NodeType.Node48:
+                        {
+                            unsafe
+                            {
+                                var bytePtrs = new Span<byte>((node + 16).ToPointer(), 256);
+                                for (var i = 0; i < 256; i++)
+                                {
+                                    var idx = bytePtrs[i];
+                                    if (idx == 255) continue;
+                                    if (i == leftByte)
+                                    {
+                                        if (leftNode != IntPtr.Zero)
+                                            pusher.PushPtr(leftByte, leftNode);
+                                        i = rightByte;
+                                        if (rightNode != IntPtr.Zero)
+                                        {
+                                            pusher.PushPtr(rightByte, rightNode);
+                                        }
+                                        continue;
+                                    }
+                                    pusher.Push((byte)i, NodeUtils.PtrInNode(node, idx));
+                                }
+                            }
+                            break;
+                        }
+                    case NodeType.Node256:
+                        {
+                            for (var i = 0; i < 256; i++)
+                            {
+                                if (i == leftByte)
+                                {
+                                    if (leftNode != IntPtr.Zero)
+                                        pusher.PushPtr(leftByte, leftNode);
+                                    i = rightByte;
+                                    if (rightNode != IntPtr.Zero)
+                                    {
+                                        pusher.PushPtr(rightByte, rightNode);
+                                    }
+                                    continue;
+                                }
+                                if (IsPtr(NodeUtils.PtrInNode(node, i), out var j))
+                                {
+                                    if (j == IntPtr.Zero)
+                                        continue;
+                                }
+                                pusher.Push((byte)i, NodeUtils.PtrInNode(node, i));
+                            }
+                            break;
+                        }
+                }
+                ref var newHeader = ref NodeUtils.Ptr2NodeHeader(newNode);
+                newHeader._childCount = (byte)willBeChildCount;
+                newHeader._recursiveChildCount = header._recursiveChildCount - (ulong)children;
+                return (newNode, children);
+            }
+        }
+
+        struct Pusher
+        {
+            IntPtr _byteDst;
+            IntPtr _dst;
+            int _type;
+
+            public Pusher(IntPtr node, NodeType nodeType)
+            {
+                switch (nodeType & NodeType.NodeSizePtrMask)
+                {
+                    case NodeType.Node4:
+                        {
+                            _type = 0;
+                            _byteDst = node + 16;
+                            _dst = node + 16 + 4;
+                            break;
+                        }
+                    case NodeType.Node4 | NodeType.Has12BPtrs:
+                        {
+                            _type = 1;
+                            _byteDst = node + 16;
+                            _dst = node + 16 + 4;
+                            break;
+                        }
+                    case NodeType.Node16:
+                        {
+                            _type = 0;
+                            _byteDst = node + 16;
+                            _dst = node + 16 + 16;
+                            break;
+                        }
+                    case NodeType.Node16 | NodeType.Has12BPtrs:
+                        {
+                            _type = 1;
+                            _byteDst = node + 16;
+                            _dst = node + 16 + 16;
+                            break;
+                        }
+                    default:
+                        throw new InvalidOperationException();
+                }
+            }
+
+            public void PushPtr(byte @byte, IntPtr ptr)
+            {
+                switch (_type)
+                {
+                    case 0:
+                        {
+                            Marshal.WriteByte(_byteDst, @byte);
+                            _byteDst += 1;
+                            Marshal.WriteIntPtr(_dst, ptr);
+                            _dst += 8;
+                            break;
+                        }
+                    case 1:
+                        {
+                            Marshal.WriteByte(_byteDst, @byte);
+                            _byteDst += 1;
+                            Marshal.WriteInt32(_dst, unchecked((int)uint.MaxValue));
+                            Marshal.WriteIntPtr(_dst + 4, ptr);
+                            _dst += 12;
+                            break;
+                        }
+                }
+            }
+
+            public void Push(byte @byte, IntPtr source)
+            {
+                switch (_type)
+                {
+                    case 0:
+                        {
+                            Marshal.WriteByte(_byteDst, @byte);
+                            _byteDst += 1;
+                            IntPtr p = Marshal.ReadIntPtr(source);
+                            Marshal.WriteIntPtr(_dst, p);
+                            if (NodeUtils.IsPtrPtr(p))
+                                NodeUtils.Reference(p);
+                            _dst += 8;
+                            break;
+                        }
+                    case 1:
+                        {
+                            Marshal.WriteByte(_byteDst, @byte);
+                            _byteDst += 1;
+                            Marshal.WriteInt32(_dst, Marshal.ReadInt32(source));
+                            Marshal.WriteInt32(_dst, 4, Marshal.ReadInt32(source, 4));
+                            Marshal.WriteInt32(_dst, 8, Marshal.ReadInt32(source, 8));
+                            if (NodeUtils.IsPtr12Ptr(source))
+                                NodeUtils.Reference(NodeUtils.Read12Ptr(source));
+                            _dst += 12;
+                            break;
+                        }
+
+                }
+            }
         }
 
         internal long CalcIndex(in StructList<CursorItem> stack)
