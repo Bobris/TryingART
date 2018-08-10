@@ -596,7 +596,7 @@ namespace ARTLib
             // scope for consistent local variable names
             {
                 var (prefixSize, prefixPtr) = NodeUtils.GetPrefixSizeAndPtr(node);
-                var (valueSize, valuePtr) = GetValueSizeAndPtrFromPtrInNode(node);
+                var (valueSize, valuePtr) = NodeUtils.GetValueSizeAndPtr(node);
                 var newNode = AllocateNode(newNodeType, prefixSize, valueSize);
                 if (prefixSize > 0)
                 {
@@ -614,7 +614,7 @@ namespace ARTLib
                     case NodeType.Node4:
                     case NodeType.Node16:
                         {
-                            for (var i = 0; i <= header._childCount; i++)
+                            for (var i = 0; i < header._childCount; i++)
                             {
                                 if (i == leftPos)
                                 {
@@ -693,9 +693,11 @@ namespace ARTLib
             IntPtr _byteDst;
             IntPtr _dst;
             int _type;
+            int _idx;
 
             public Pusher(IntPtr node, NodeType nodeType)
             {
+                _idx = 0;
                 switch (nodeType & NodeType.NodeSizePtrMask)
                 {
                     case NodeType.Node4:
@@ -726,6 +728,34 @@ namespace ARTLib
                             _dst = node + 16 + 16;
                             break;
                         }
+                    case NodeType.Node48:
+                        {
+                            _type = 2;
+                            _byteDst = node + 16;
+                            _dst = node + 16 + 256;
+                            break;
+                        }
+                    case NodeType.Node48 | NodeType.Has12BPtrs:
+                        {
+                            _type = 3;
+                            _byteDst = node + 16;
+                            _dst = node + 16 + 256;
+                            break;
+                        }
+                    case NodeType.Node256:
+                        {
+                            _type = 4;
+                            _byteDst = node;
+                            _dst = node + 16;
+                            break;
+                        }
+                    case NodeType.Node256 | NodeType.Has12BPtrs:
+                        {
+                            _type = 5;
+                            _byteDst = node;
+                            _dst = node + 16;
+                            break;
+                        }
                     default:
                         throw new InvalidOperationException();
                 }
@@ -750,6 +780,34 @@ namespace ARTLib
                             Marshal.WriteInt32(_dst, unchecked((int)uint.MaxValue));
                             Marshal.WriteIntPtr(_dst + 4, ptr);
                             _dst += 12;
+                            break;
+                        }
+                    case 2:
+                        {
+                            Marshal.WriteByte(_byteDst, @byte, (byte)_idx);
+                            _idx++;
+                            Marshal.WriteIntPtr(_dst, ptr);
+                            _dst += 8;
+                            break;
+                        }
+                    case 3:
+                        {
+                            Marshal.WriteByte(_byteDst, @byte, (byte)_idx);
+                            _idx++;
+                            Marshal.WriteInt32(_dst, unchecked((int)uint.MaxValue));
+                            Marshal.WriteIntPtr(_dst + 4, ptr);
+                            _dst += 12;
+                            break;
+                        }
+                    case 4:
+                        {
+                            Marshal.WriteIntPtr(_dst, 8 * @byte, ptr);
+                            break;
+                        }
+                    case 5:
+                        {
+                            Marshal.WriteInt32(_dst, 12 * @byte, unchecked((int)uint.MaxValue));
+                            Marshal.WriteIntPtr(_dst + 4, 12 * @byte, ptr);
                             break;
                         }
                 }
@@ -782,7 +840,47 @@ namespace ARTLib
                             _dst += 12;
                             break;
                         }
-
+                    case 2:
+                        {
+                            Marshal.WriteByte(_byteDst, @byte, (byte)_idx);
+                            _idx++;
+                            IntPtr p = Marshal.ReadIntPtr(source);
+                            Marshal.WriteIntPtr(_dst, p);
+                            if (NodeUtils.IsPtrPtr(p))
+                                NodeUtils.Reference(p);
+                            _dst += 8;
+                            break;
+                        }
+                    case 3:
+                        {
+                            Marshal.WriteByte(_byteDst, @byte, (byte)_idx);
+                            _idx++;
+                            Marshal.WriteInt32(_dst, Marshal.ReadInt32(source));
+                            Marshal.WriteInt32(_dst, 4, Marshal.ReadInt32(source, 4));
+                            Marshal.WriteInt32(_dst, 8, Marshal.ReadInt32(source, 8));
+                            if (NodeUtils.IsPtr12Ptr(source))
+                                NodeUtils.Reference(NodeUtils.Read12Ptr(source));
+                            _dst += 12;
+                            break;
+                        }
+                    case 4:
+                        {
+                            IntPtr p = Marshal.ReadIntPtr(source);
+                            Marshal.WriteIntPtr(_dst, 8 * @byte, p);
+                            if (NodeUtils.IsPtrPtr(p))
+                                NodeUtils.Reference(p);
+                            break;
+                        }
+                    case 5:
+                        {
+                            var ofs = 12 * @byte;
+                            Marshal.WriteInt32(_dst, ofs, Marshal.ReadInt32(source));
+                            Marshal.WriteInt32(_dst, ofs + 4, Marshal.ReadInt32(source, 4));
+                            Marshal.WriteInt32(_dst, ofs + 8, Marshal.ReadInt32(source, 8));
+                            if (NodeUtils.IsPtr12Ptr(source))
+                                NodeUtils.Reference(NodeUtils.Read12Ptr(source));
+                            break;
+                        }
                 }
             }
         }

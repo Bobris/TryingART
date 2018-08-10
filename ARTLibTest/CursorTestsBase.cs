@@ -939,5 +939,30 @@ namespace ARTLibTest
             Assert.Equal((count - 1) * 2, key[1]);
             Assert.Equal(val, _cursor.GetValue().ToArray());
         }
+
+        [Theory]
+        [InlineData(0, 3, 1, 2)]
+        [InlineData(0, 15, 1, 2)]
+        [InlineData(0, 15, 1, 14)]
+        public void EraseToWithSnapshot(int datafrom, int datato, int erasefrom, int eraseto)
+        {
+            var val = GetSampleValue().ToArray();
+            var key = new byte[2];
+            for (int i = datafrom; i <= datato; i++)
+            {
+                key[1] = (byte)i;
+                _cursor.Upsert(key, val);
+            }
+            key[1] = (byte)erasefrom;
+            _cursor.FindExact(key);
+            var c2 = _cursor.Clone();
+            key[1] = (byte)eraseto;
+            c2.FindExact(key);
+            var snapshot = _root.Snapshot();
+            Assert.Equal(eraseto - erasefrom + 1, _cursor.EraseTo(c2));
+            Assert.Equal(datato - datafrom - (eraseto - erasefrom), _root.GetCount());
+            Assert.Equal(datato - datafrom + 1, snapshot.GetCount());
+            snapshot.Dispose();
+        }
     }
 }
