@@ -45,14 +45,22 @@ namespace ARTLibTest
             Assert.Equal(-1, _cursor.CalcIndex());
         }
 
-        public static IEnumerable<object[]> SampleKeys =>
-        new List<object[]>
+        public static IEnumerable<object[]> SampleKeys
         {
-            new object[] { new byte[] { 1, 2, 3 } },
-            new object[] { new byte[] { 1 } },
-            new object[] { new byte[] { } },
-            new object[] { new byte[] { 5, 4, 3, 2, 1, 0, 255, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } },
-        };
+            get
+            {
+                var longKey = new byte[100000];
+                new Random(1).NextBytes(longKey);
+                return new List<object[]>
+                    {
+                        new object[] { new byte[] { 1, 2, 3 } },
+                        new object[] { new byte[] { 1 } },
+                        new object[] { new byte[] { } },
+                        new object[] { new byte[] { 5, 4, 3, 2, 1, 0, 255, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } },
+                        new object[] { longKey }
+                    };
+            }
+        }
 
         [Theory]
         [MemberData(nameof(SampleKeys))]
@@ -89,6 +97,21 @@ namespace ARTLibTest
                 Assert.Equal(val2.Length, _cursor.GetValueLength());
                 Assert.Equal(val2, _cursor.GetValue().ToArray());
             }
+            _cursor.Upsert(new byte[] { 2 }, val);
+            Assert.Equal(val.Length, _cursor.GetValueLength());
+            Assert.Equal(val, _cursor.GetValue().ToArray());
+            _cursor.WriteValue(val2);
+            Assert.Equal(val2.Length, _cursor.GetValueLength());
+            Assert.Equal(val2, _cursor.GetValue().ToArray());
+            _cursor.WriteValue(val);
+            Assert.Equal(val.Length, _cursor.GetValueLength());
+            Assert.Equal(val, _cursor.GetValue().ToArray());
+            using (var snapshot = _root.Snapshot())
+            {
+                _cursor.WriteValue(val2);
+                Assert.Equal(val2.Length, _cursor.GetValueLength());
+                Assert.Equal(val2, _cursor.GetValue().ToArray());
+            }
         }
 
         public static IEnumerable<object[]> SampleKeys2 =>
@@ -96,11 +119,11 @@ namespace ARTLibTest
         {
             new object[] { new byte[] { 1, 2, 3 }, new byte[] { } },
             new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 } },
-            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 , 2 } },
-            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 , 2, 2 } },
-            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 , 2, 4 } },
-            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 , 1 } },
-            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1 , 3 } },
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1, 2 } },
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1, 2, 2 } },
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1, 2, 4 } },
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1, 1 } },
+            new object[] { new byte[] { 1, 2, 3 }, new byte[] { 1, 3 } },
         };
 
         [Theory]
@@ -944,6 +967,11 @@ namespace ARTLibTest
         [InlineData(0, 3, 1, 2)]
         [InlineData(0, 15, 1, 2)]
         [InlineData(0, 15, 1, 14)]
+        [InlineData(0, 47, 3, 4)]
+        [InlineData(0, 46, 2, 45)]
+        [InlineData(0, 46, 1, 35)]
+        [InlineData(0, 255, 5, 6)]
+        [InlineData(0, 254, 10, 250)]
         public void EraseToWithSnapshot(int datafrom, int datato, int erasefrom, int eraseto)
         {
             var val = GetSampleValue().ToArray();
@@ -964,5 +992,98 @@ namespace ARTLibTest
             Assert.Equal(datato - datafrom + 1, snapshot.GetCount());
             snapshot.Dispose();
         }
+
+        [Theory]
+        [InlineData(20, 128, 200, 20, 46153)]
+        [InlineData(24, 20, 24, 24, 5)]
+        [InlineData(0, 128, 255, 20, 65428)]
+        [InlineData(0, 10, 255, 255, 65781)]
+        [InlineData(0, 0, 255, 245, 65781)]
+        [InlineData(10, 128, 245, 128, 60396)]
+        [InlineData(10, 128, 10, 128, 1)]
+        [InlineData(40, 0, 40, 255, 256)]
+        [InlineData(40, -1, 40, 255, 257)]
+        public void BigErase256Works(byte l0, int l1, byte r0, byte r1, int erased)
+        {
+            var key = new byte[2];
+            for (int i = 0; i <= 255; i++)
+            {
+                key[0] = (byte)i;
+                for (int j = 0; j <= 255; j++)
+                {
+                    key[1] = (byte)j;
+                    _cursor.Upsert(key, GetSampleValue(j));
+                }
+                _cursor.Upsert(key.AsSpan(0, 1), GetSampleValue(i));
+            }
+            key[0] = l0;
+            key[1] = (byte)l1;
+            _cursor.FindExact(key.AsSpan(0, 1 + (l1 >= 0 ? 1 : 0)));
+            var c2 = _cursor.Clone();
+            key[0] = r0;
+            key[1] = r1;
+            c2.FindExact(key);
+            var snapshot = _root.Snapshot();
+            Assert.Equal(erased, _cursor.EraseTo(c2));
+            Assert.Equal(65792 - erased, _root.GetCount());
+            Assert.Equal(65792, snapshot.GetCount());
+            snapshot.Dispose();
+            for (int i = 0; i <= 255; i++)
+            {
+                key[0] = (byte)i;
+                for (int j = 0; j <= 255; j++)
+                {
+                    key[1] = (byte)j;
+                    if (_cursor.FindExact(key))
+                        Assert.Equal(GetSampleValue(j).ToArray(), _cursor.GetValue().ToArray());
+                }
+                if (_cursor.FindExact(key.AsSpan(0, 1)))
+                    Assert.Equal(GetSampleValue(i).ToArray(), _cursor.GetValue().ToArray());
+            }
+        }
+
+        [Theory]
+        [InlineData(20, 22, 22, 20, 63)]
+        [InlineData(20, 22, 22, 40, 83)]
+        [InlineData(20, -1, 22, 40, 96)]
+        public void BigErase48Works(byte l0, int l1, byte r0, byte r1, int erased)
+        {
+            var key = new byte[2];
+            for (int i = 10; i <= 40; i++)
+            {
+                key[0] = (byte)i;
+                for (int j = 10; j <= 40; j++)
+                {
+                    key[1] = (byte)j;
+                    _cursor.Upsert(key, GetSampleValue(j));
+                }
+                _cursor.Upsert(key.AsSpan(0, 1), GetSampleValue(i));
+            }
+            key[0] = l0;
+            key[1] = (byte)l1;
+            _cursor.FindExact(key.AsSpan(0, 1 + (l1 >= 0 ? 1 : 0)));
+            var c2 = _cursor.Clone();
+            key[0] = r0;
+            key[1] = r1;
+            c2.FindExact(key);
+            var snapshot = _root.Snapshot();
+            Assert.Equal(erased, _cursor.EraseTo(c2));
+            Assert.Equal(992 - erased, _root.GetCount());
+            Assert.Equal(992, snapshot.GetCount());
+            snapshot.Dispose();
+            for (int i = 10; i <= 40; i++)
+            {
+                key[0] = (byte)i;
+                for (int j = 10; j <= 40; j++)
+                {
+                    key[1] = (byte)j;
+                    if (_cursor.FindExact(key))
+                        Assert.Equal(GetSampleValue(j).ToArray(), _cursor.GetValue().ToArray());
+                }
+                if (_cursor.FindExact(key.AsSpan(0, 1)))
+                    Assert.Equal(GetSampleValue(i).ToArray(), _cursor.GetValue().ToArray());
+            }
+        }
+
     }
 }

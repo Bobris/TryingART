@@ -120,15 +120,12 @@ namespace ARTLib
                 if (leftIndex + 1 < left.Count)
                 {
                     (leftNode, childrenLeft) = EraseTillEnd(downUnique, left.AsSpan((int)leftIndex + 1));
-                    if (leftNode == IntPtr.Zero) childrenLeft = 0;
                 }
                 if (rightIndex + 1 < right.Count)
                 {
                     (rightNode, childrenRight) = EraseFromStart(downUnique, right.AsSpan((int)rightIndex + 1));
-                    if (rightNode == IntPtr.Zero) childrenRight = 0;
                 }
                 (newNode, children) = EraseRangeFromNode(isUnique, leftItem._node, leftItem._posInNode, leftItem._byte, leftNode, rightItem._posInNode, rightItem._byte, rightNode);
-                children += childrenLeft + childrenRight;
                 goto up;
             }
             up:
@@ -302,11 +299,12 @@ namespace ARTLib
             }
             var willBeIsLeaf = header._nodeType.HasFlag(NodeType.IsLeaf) && (leftPos > -1);
             var willBeChildCount = header.ChildCount;
+            var children = 0L;
             if (leftPos == -1)
             {
+                children++;
                 (leftPos, leftByte) = GetStartPosAndByteSkipLeaf(node);
             }
-            var children = 0L;
             switch (header._nodeType & NodeType.NodeSizeMask)
             {
                 case NodeType.Node4:
@@ -607,6 +605,11 @@ namespace ARTLib
                 {
                     var (newValueSize, newValuePtr) = NodeUtils.GetValueSizeAndPtr(newNode);
                     CopyMemory(valuePtr, newValuePtr, (int)valueSize);
+                }
+                if (willBeChildCount == 0)
+                {
+                    NodeUtils.Ptr2NodeHeader(newNode)._recursiveChildCount = 1;
+                    return (newNode, children);
                 }
                 Pusher pusher = new Pusher(newNode, newNodeType);
                 switch (header._nodeType & NodeType.NodeSizeMask)
